@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="/img">
+    <file>img/숫자기호.svg</file>
+    <file>img/알파벳.svg</file>
+    <file>img/한글.svg</file>
+  </qresource>
+</RCC>
