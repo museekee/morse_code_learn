@@ -87,7 +87,7 @@ ko_word_map = {
 
 
 class IME:
-    don_time = 200  # ㆍ(돈) 시간
+    don_time = 100  # ㆍ(돈) 시간
     tsu_time = don_time * 3  # ㅡ(쓰) 시간
     plusminus = 100  # 입력 오차 범위
     morse_gap = don_time  # 모스부호(신호)간 간격 <= 이거보다 일찍 입력하면 입력 묵살
@@ -109,12 +109,24 @@ class IME:
     key_down_type = None
 
     # callback은 나중에 websocket에서 쓸듯 / signal은 ㆍ, ㅡ 입력될때마다 호출 / ended_char는 글자 완성될때마다 호출
-    def __init__(self, on_signal=(lambda signal: None), on_ended_char=(lambda morse, char: None), on_ended_word=(lambda word: None), on_ignored=(lambda: None)):
+    def __init__(
+        self,
+        on_signal=(lambda signal: None),
+        on_ended_char=(lambda morse, char: None),
+        on_ended_word=(lambda word: None),
+        on_ignored=(lambda: None),
+        no_delay=False
+    ):
         print("모스부호 IME 준비 완료")
         self.on_signal = on_signal
         self.on_ended_char = on_ended_char
         self.on_ended_word = on_ended_word
         self.on_ignored = on_ignored
+        if no_delay:
+            self.morse_gap = 0
+
+    def sync(self):
+        pass
 
     # dontsu은 space로 하기 힘든 분들을 위해 don tsu 입력을 구분해서 할 수 있게
     def key_down(self, dontsu=None):
