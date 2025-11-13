@@ -25,12 +25,12 @@ except ImportError:
 
 def getPixmap(image_name: str) -> QPixmap:
     theme = "dark" if darkdetect.isDark() else "light"
-    image_path = f"./ui/img/{theme}/{image_name}"
+    image_path = f"./assets/img/{theme}/{image_name}"
     return QPixmap(image_path)
 
 def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
     theme = "dark" if darkdetect.isDark() else "light"
-    image_path = f"./ui/img/{theme}/{image_name}"
+    image_path = f"./assets/img/{theme}/{image_name}"
     renderer = QSvgRenderer(image_path)
 
     pixmap = QPixmap(width, height)
@@ -46,7 +46,7 @@ class MemorizeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         loader = QUiLoader()
-        self.ui = loader.load("./ui/memorize.ui", self)
+        self.ui = loader.load("./assets/memorize.ui", self)
 
         self.setLayout(self.ui.layout())
         self.setWindowTitle(self.ui.windowTitle())
@@ -66,7 +66,7 @@ class PortalWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         loader = QUiLoader()
-        self.ui = loader.load("./ui/portal.ui")
+        self.ui = loader.load("./assets/portal.ui")
         self.setCentralWidget(self.ui.centralWidget())
         self.setGeometry(self.ui.geometry())
         self.setWindowTitle(self.ui.windowTitle())
