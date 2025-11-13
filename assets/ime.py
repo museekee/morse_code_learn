@@ -59,7 +59,7 @@ en_word_map = {
 ko_word_map = {
     'ㆍㅡㆍㆍ': 'ㄱ',
     'ㆍㆍㅡㆍ': 'ㄴ',
-    'ㅡㅡㆍㆍ': 'ㄷ',
+    'ㅡㆍㆍㆍ': 'ㄷ',
     'ㆍㆍㆍㅡ': 'ㄹ',
     'ㅡㅡ': 'ㅁ',
     'ㆍㅡㅡ': 'ㅂ',
@@ -138,6 +138,7 @@ class IME:
         if self.ignore_key:
             self.on_ignored()
             self.ignore_key = False
+            self.is_key_upped = True
             return
         end_time = int(time.time() * 1000)  # 키 뗀 시간
         press_time = end_time - self.start_time  # 입력 시간
@@ -186,3 +187,11 @@ class IME:
         self.morse_word = [[]]
         self.now_char_idx = 0
         self.word = ""
+        self.last_input_time = 0
+        self.start_time = 0
+        for t in self.interruptable_timer:
+            t.cancel()
+        self.interruptable_timer = []
+        self.ignore_key = False
+        self.is_key_upped = True
+        self.key_down_type = None
