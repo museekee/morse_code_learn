@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>301</height>
+    <height>431</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -43,6 +43,11 @@
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
+     </property>
+     <property name="font">
+      <font>
+       <family>궁서체</family>
+      </font>
      </property>
      <property name="currentIndex">
       <number>0</number>
