@@ -1,12 +1,12 @@
 # region 패키지나 assets 다운로드
 try:
     import os
-    from PySide6.QtCore import QFile
-    from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget
-    from PySide6.QtUiTools import QUiLoader
-    from PySide6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
-    from PySide6.QtCore import Qt
-    from PySide6.QtSvg import QSvgRenderer
+    from PyQt6.QtCore import QFile
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget
+    from PyQt6.uic import loadUi
+    from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtSvg import QSvgRenderer
     import darkdetect
     import random
 except ImportError:
@@ -14,7 +14,7 @@ except ImportError:
     import os
 
     print("Requirements are not installed. Installing...")
-    pip.main(["install", "PySide6", "darkdetect"])  # pyside6, darkdetect 설치
+    pip.main(["install", "PyQt6", "darkdetect"])  # pyqt6, darkdetect 설치
 
     if os.system(f"python \"{__file__}\"") == 0:
         exit(0)
@@ -264,28 +264,27 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
 class MemorizeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loader = QUiLoader()
-        self.ui = loader.load("./assets/memorize.ui", self)
+        loadUi("./assets/memorize.ui", self)
 
-        self.setLayout(self.ui.layout())
-        self.setWindowTitle(self.ui.windowTitle())
-        self.resize(self.ui.size())
-        self.setFont(self.ui.font())
+        self.setLayout(self.layout())
+        self.setWindowTitle(self.windowTitle())
+        self.resize(self.size())
+        self.setFont(self.font())
 
-        self.ui.NumberImage.setPixmap(
+        self.NumberImage.setPixmap(
             getPixmapedSvg("숫자기호.svg", self.width()*3, self.height()*3)
-            .scaled(self.width(), self.height(), Qt.KeepAspectRatio)
+            .scaled(self.width(), self.height())
         )  # 숫자기호 사진 출력
-        self.ui.EngImage.setPixmap(
+        self.EngImage.setPixmap(
             getPixmapedSvg("알파벳.svg", self.width()*3, self.height()*3)
-            .scaled(self.width(), self.height(), Qt.KeepAspectRatio)
+            .scaled(self.width(), self.height())
         )  # 알파벳 사진 출력
-        self.ui.HangulImage.setPixmap(
+        self.HangulImage.setPixmap(
             getPixmapedSvg("한글.svg", self.width()*3, self.height()*3)
-            .scaled(self.width(), self.height(), Qt.KeepAspectRatio)
+            .scaled(self.width(), self.height())
         )  # 한글 사진 출력
 
-        self.ui.buttonBox.accepted.connect(self.on_ok_clicked)
+        self.buttonBox.accepted.connect(self.on_ok_clicked)
 
     def on_ok_clicked(self):
         self.accept()
@@ -294,14 +293,13 @@ class MemorizeDialog(QDialog):
 class LearnDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loader = QUiLoader()
-        self.ui = loader.load("./assets/learn.ui", self)
+        loadUi("./assets/learn.ui", self)
 
-        self.setGeometry(self.ui.geometry())
-        self.setWindowTitle(self.ui.windowTitle())
-        self.setStyleSheet(self.ui.styleSheet())
-        self.setFont(self.ui.font())
-        self.setFixedSize(self.ui.size())
+        self.setGeometry(self.geometry())
+        self.setWindowTitle(self.windowTitle())
+        self.setStyleSheet(self.styleSheet())
+        self.setFont(self.font())
+        self.setFixedSize(self.size())
 
         self.ime = IME(
             on_signal=self.on_ime_signal,
@@ -312,12 +310,12 @@ class LearnDialog(QDialog):
         self.load_new_question()  # 처음에 새거 하나 가져와야함.
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Space and not event.isAutoRepeat():  # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
+        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():  # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
             self.ime.key_down()
         return super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        if event.key() == Qt.Key_Space and not event.isAutoRepeat():
+        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
             self.ime.key_up()
         return super().keyReleaseEvent(event)
 
@@ -334,7 +332,7 @@ class LearnDialog(QDialog):
             else:
                 additional.append(f"<red>{s}</red>")
 
-        self.ui.me_morse.setText(template + ''.join(additional))
+        self.me_morse.setText(template + ''.join(additional))
         # print(self.ime.morse_word[self.ime.now_char_idx])
 
     def on_ime_ended_char(self, morse, char):
@@ -342,14 +340,14 @@ class LearnDialog(QDialog):
         # time sleep하면 ended_word 상쇄 될듯?
         # 가장 위로 오버레이 해서 도티낳기 게임처럼 O X를 화면 앞 크게 띄울까
         if char == self.current_question[1]:
-            self.ui.me_morse.setText(" ⭕ ")
+            self.me_morse.setText(" ⭕ ")
             time.sleep(0.5)
-            self.ui.me_morse.setText("")
+            self.me_morse.setText("")
             self.load_new_question()
         else:
-            self.ui.me_morse.setText(" ❌ ")
+            self.me_morse.setText(" ❌ ")
             time.sleep(0.5)
-            self.ui.me_morse.setText("")
+            self.me_morse.setText("")
 
     def on_ime_ended_word(self, word):
         # print(f"Ended Word: {word}")
@@ -359,25 +357,24 @@ class LearnDialog(QDialog):
         all_morse = list(common_word_map.items()) + list(en_word_map.items())
         morse, char = random.choice(all_morse)
         self.current_question = (morse, char)
-        self.ui.target_char.setText(char)
-        self.ui.target_morse.setText(morse)
+        self.target_char.setText(char)
+        self.target_morse.setText(morse)
 
 
 class PortalWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        loader = QUiLoader()
-        self.ui = loader.load("./assets/portal.ui")
-        self.setCentralWidget(self.ui.centralWidget())
-        self.setGeometry(self.ui.geometry())
-        self.setWindowTitle(self.ui.windowTitle())
-        self.setStyleSheet(self.ui.styleSheet())
-        self.setFont(self.ui.font())
+        loadUi("./assets/portal.ui", self)
+        self.setCentralWidget(self.centralWidget())
+        self.setGeometry(self.geometry())
+        self.setWindowTitle(self.windowTitle())
+        self.setStyleSheet(self.styleSheet())
+        self.setFont(self.font())
         # jersey_font = QFont("Jersey 25", 48)
         # self.ui.label.setFont(jersey_font)
 
-        self.ui.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
-        self.ui.btnLearn.clicked.connect(self.on_btnLearn_clicked)
+        self.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
+        self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
 
     def on_btnMemorize_clicked(self):
         dialog = MemorizeDialog(self)
