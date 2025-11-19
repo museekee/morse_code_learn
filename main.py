@@ -7,8 +7,10 @@ try:
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
     from PyQt6.QtCore import Qt
     from PyQt6.QtSvg import QSvgRenderer
+    from PyQt6 import QtCore
     import darkdetect
     import random
+    import winsound
 except ImportError:
     import pip
     import os
@@ -162,6 +164,8 @@ class IME:
     def key_down(self, dontsu=None):
         if not self.is_key_upped:
             return
+        if not self.ignore_key:
+            self.start_beep()
         self.is_key_upped = False
         self.key_down_type = dontsu
         input_gap = int(time.time() * 1000) - self.last_input_time
@@ -184,6 +188,7 @@ class IME:
             return
         end_time = int(time.time() * 1000)  # 키 뗀 시간
         press_time = end_time - self.start_time  # 입력 시간
+        # print(f"Pressed time: {press_time}ms")
 
         # press_time >= self.tsu_time +- self.plusminus
         if self.tsu_time - self.plusminus <= press_time <= self.tsu_time + self.plusminus or self.key_down_type == 'tsu':
@@ -206,16 +211,17 @@ class IME:
         self.interruptable_timer.append(word_end_timer)
         word_end_timer.start()
         self.is_key_upped = True
+        self.stop_beep()
 
     def char_end(self):
         morse = ''.join(self.morse_word[self.now_char_idx])
-        word_map = en_word_map if self.lang == "en" else ko_word_map
-        if morse in word_map:
+        word_map = en_word_map if self.lang == "en" else ko_word_map  # 언어에 맞는 모스부호 리스트를 가져옴
+        if morse in word_map:  # 언어 모스부호
             self.word += word_map[morse]
-            self.on_ended_char(morse, word_map[morse])
+            self.on_ended_char(morse, word_map[morse])  # event 보내줌
             self.now_char_idx += 1
             self.morse_word.append([])
-        elif morse in common_word_map:
+        elif morse in common_word_map:  # 기호 숫자 등 공통 모스부호
             self.word += common_word_map[morse]
             self.on_ended_char(morse, common_word_map[morse])
             self.now_char_idx += 1
@@ -237,6 +243,15 @@ class IME:
         self.ignore_key = False
         self.is_key_upped = True
         self.key_down_type = None
+
+    def stop_beep(self):
+        winsound.PlaySound(None, winsound.SND_PURGE)
+
+    def start_beep(self):
+        sound_path = os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), "assets", "sound", "beep.wav")
+        winsound.PlaySound(sound_path, winsound.SND_FILENAME |
+                           winsound.SND_ASYNC | winsound.SND_LOOP)
 # endregion
 
 
@@ -307,7 +322,35 @@ class LearnDialog(QDialog):
             on_ended_word=self.on_ime_ended_word,
             no_delay=True
         )  # ime 만듦.
+        self.ime.word_gap = self.ime.don_time * 4
+
+        self.correct = QLabel(self)
+        self.correct.setGeometry(0, 0, 800, 750)
+        self.correct.setPixmap(
+            QPixmap("./assets/img/correct.png").scaled(800, 750))
+        self.correct.raise_()
+
+        self.wrong = QLabel(self)
+        self.wrong.setGeometry(0, 0, 800, 750)
+        self.wrong.setPixmap(
+            QPixmap("./assets/img/wrong.png").scaled(800, 750))
+        self.wrong.raise_()
+        self.correct.hide()
+        self.wrong.hide()
+
         self.load_new_question()  # 처음에 새거 하나 가져와야함.
+
+    def ox(self, is_o: bool):
+        if is_o:
+            self.correct.show()
+            self.wrong.hide()
+        else:
+            self.correct.hide()
+            self.wrong.show()
+
+    def remove_ox(self):
+        self.correct.hide()
+        self.wrong.hide()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():  # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
@@ -320,7 +363,7 @@ class LearnDialog(QDialog):
         return super().keyReleaseEvent(event)
 
     def on_ime_signal(self, signal):
-        print(f"Signal: {signal}")
+        # print(f"Signal: {signal}")
         template = "<style>body {margin: 0;}brown {color: #643;}red {color: #ff0000;}</style>"
         additional = []
         for i, s in enumerate(self.ime.morse_word[self.ime.now_char_idx]):
@@ -339,18 +382,23 @@ class LearnDialog(QDialog):
         # 여기서 합불 판독
         # time sleep하면 ended_word 상쇄 될듯?
         # 가장 위로 오버레이 해서 도티낳기 게임처럼 O X를 화면 앞 크게 띄울까
-        if char == self.current_question[1]:
-            self.me_morse.setText(" ⭕ ")
+        pass
+
+    # 어려웠던 점 1. 틀렸는데 틀린걸 알 수 없음. ime_ended_char에서는 정상적인 모스부호만 호출해주기 때문에 없는걸 써서 틀린건 알 수 없음.
+    # 그래서 ime_ended_word의 시간을 char급으로 줄이고 word에서 판독하게 함. word는 틀리든 맞든 전체 결과를 출력하는 것이기 때문.
+    def on_ime_ended_word(self, word):
+        self.ime.ignore_key = True
+        if word == self.current_question[1]:
+            self.ox(True)
             time.sleep(0.5)
-            self.me_morse.setText("")
+            self.remove_ox()
             self.load_new_question()
         else:
-            self.me_morse.setText(" ❌ ")
+            self.ox(False)
             time.sleep(0.5)
+            self.remove_ox()
             self.me_morse.setText("")
-
-    def on_ime_ended_word(self, word):
-        # print(f"Ended Word: {word}")
+        self.ime.ignore_key = False
         pass
 
     def load_new_question(self):
@@ -359,6 +407,7 @@ class LearnDialog(QDialog):
         self.current_question = (morse, char)
         self.target_char.setText(char)
         self.target_morse.setText(morse)
+        self.me_morse.setText("")
 
 
 class PortalWindow(QMainWindow):
@@ -372,11 +421,15 @@ class PortalWindow(QMainWindow):
         self.setFont(self.font())
         # jersey_font = QFont("Jersey 25", 48)
         # self.ui.label.setFont(jersey_font)
+        self.btnMemorize.clicked.disconnect()
+        self.btnLearn.clicked.disconnect()
 
         self.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
         self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
 
+    # @QtCore.pyqtSlot()
     def on_btnMemorize_clicked(self):
+        print("Memorize")
         dialog = MemorizeDialog(self)
         dialog.show()
 
