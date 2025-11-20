@@ -275,35 +275,19 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
 
     return pixmap  # 줌.
 
+class PlayNote(QLabel):
+    def __init__(self, char="A", lane=0):
+        super().__init__()
+        self.setText(char)
+        self.setGeometry(200+(100*lane), 0, 100, 50)
+        self.setStyleSheet(r"")
 
-class MemorizeDialog(QDialog):
+    def down(self):
+        pass
+
+class PlayDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loadUi("./assets/memorize.ui", self)
-
-        self.setLayout(self.layout())
-        self.setWindowTitle(self.windowTitle())
-        self.resize(self.size())
-        self.setFont(self.font())
-
-        self.NumberImage.setPixmap(
-            getPixmapedSvg("숫자기호.svg", self.width()*3, self.height()*3)
-            .scaled(self.width(), self.height())
-        )  # 숫자기호 사진 출력
-        self.EngImage.setPixmap(
-            getPixmapedSvg("알파벳.svg", self.width()*3, self.height()*3)
-            .scaled(self.width(), self.height())
-        )  # 알파벳 사진 출력
-        self.HangulImage.setPixmap(
-            getPixmapedSvg("한글.svg", self.width()*3, self.height()*3)
-            .scaled(self.width(), self.height())
-        )  # 한글 사진 출력
-
-        self.buttonBox.accepted.connect(self.on_ok_clicked)
-
-    def on_ok_clicked(self):
-        self.accept()
-
 
 class LearnDialog(QDialog):
     def __init__(self, parent=None):
@@ -409,6 +393,33 @@ class LearnDialog(QDialog):
         self.target_morse.setText(morse)
         self.me_morse.setText("")
 
+class MemorizeDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        loadUi("./assets/memorize.ui", self)
+
+        self.setLayout(self.layout())
+        self.setWindowTitle(self.windowTitle())
+        self.resize(self.size())
+        self.setFont(self.font())
+
+        self.NumberImage.setPixmap(
+            getPixmapedSvg("숫자기호.svg", self.width()*3, self.height()*3)
+            .scaled(self.width(), self.height())
+        )  # 숫자기호 사진 출력
+        self.EngImage.setPixmap(
+            getPixmapedSvg("알파벳.svg", self.width()*3, self.height()*3)
+            .scaled(self.width(), self.height())
+        )  # 알파벳 사진 출력
+        self.HangulImage.setPixmap(
+            getPixmapedSvg("한글.svg", self.width()*3, self.height()*3)
+            .scaled(self.width(), self.height())
+        )  # 한글 사진 출력
+
+        self.buttonBox.accepted.connect(self.on_ok_clicked)
+
+    def on_ok_clicked(self):
+        self.accept()
 
 class PortalWindow(QMainWindow):
     def __init__(self):
@@ -427,7 +438,6 @@ class PortalWindow(QMainWindow):
         self.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
         self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
 
-    # @QtCore.pyqtSlot()
     def on_btnMemorize_clicked(self):
         print("Memorize")
         dialog = MemorizeDialog(self)
@@ -435,6 +445,7 @@ class PortalWindow(QMainWindow):
 
     def on_btnLearn_clicked(self):
         learn_widget = LearnDialog(self)
+        learn_widget.ime.word_end() # dialog 다시 실행될 때 초기화
         learn_widget.exec()
 
 
