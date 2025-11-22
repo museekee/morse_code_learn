@@ -10,13 +10,60 @@ try:
     from PyQt6 import QtCore
     import darkdetect
     import random
-    import winsound
+    import sounddevice as sd
+    import soundfile as sf
+    import requests
+    import io
+
+    # 메모리에 저장할 asset들.....
+    assets = {
+        "font": {
+            "Jersey25-Regular.ttf": None
+        },
+        "sound": {
+            "beep.wav": None
+        },
+        "img": {
+            "dark": {
+                "숫자기호.svg": None,
+                "알파벳.svg": None,
+                "한글.svg": None
+            },
+            "light": {
+                "숫자기호.svg": None,
+                "알파벳.svg": None,
+                "한글.svg": None
+            },
+            "correct.png": None,
+            "wrong.png": None
+        },
+        "learn.ui": None,
+        "memorize.ui": None,
+        "portal.ui": None,
+        "play.ui": None
+    }
+    assets["beep.wav"] = sf.read(
+        io.BytesIO(
+            requests.get(
+                "https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/sound/beep.wav").content
+        )
+        # 쌤이 적재하지 말고 온라인에서 가져오래서 ㅠㅠ sd에서 쓰기 위해 오디오 데이터와 샘플링데이터로 분리하는 과정... (tuple)
+    )
+    sd.default.latency = "low"  # 기본 레이턴시 왜 high냐 슬프네
+
+    assets["img"]["dark"] = {
+        "숫자기호.svg": requests.get(r"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/img/dark/숫자기호.svg").content
+    }
+
+
 except ImportError:
     import pip
     import os
 
     print("Requirements are not installed. Installing...")
-    pip.main(["install", "PyQt6", "darkdetect"])  # pyqt6, darkdetect 설치
+    # pyqt6, darkdetect, requests 설치
+    pip.main(["install", "PyQt6", "darkdetect",
+             "sounddevice", "soundfile", "requests"])
 
     if os.system(f"python \"{__file__}\"") == 0:
         exit(0)
@@ -245,13 +292,10 @@ class IME:
         self.key_down_type = None
 
     def stop_beep(self):
-        winsound.PlaySound(None, winsound.SND_PURGE)
+        sd.stop()
 
     def start_beep(self):
-        sound_path = os.path.join(os.path.dirname(
-            os.path.abspath(__file__)), "assets", "sound", "beep.wav")
-        winsound.PlaySound(sound_path, winsound.SND_FILENAME |
-                           winsound.SND_ASYNC | winsound.SND_LOOP)
+        sd.play(*assets["beep"], blocksize=1024)
 # endregion
 
 
@@ -275,6 +319,7 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
 
     return pixmap  # 줌.
 
+
 class PlayNote(QLabel):
     def __init__(self, char="A", lane=0):
         super().__init__()
@@ -285,9 +330,11 @@ class PlayNote(QLabel):
     def down(self):
         pass
 
+
 class PlayDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+
 
 class LearnDialog(QDialog):
     def __init__(self, parent=None):
@@ -393,6 +440,7 @@ class LearnDialog(QDialog):
         self.target_morse.setText(morse)
         self.me_morse.setText("")
 
+
 class MemorizeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -421,6 +469,7 @@ class MemorizeDialog(QDialog):
     def on_ok_clicked(self):
         self.accept()
 
+
 class PortalWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -439,13 +488,12 @@ class PortalWindow(QMainWindow):
         self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
 
     def on_btnMemorize_clicked(self):
-        print("Memorize")
         dialog = MemorizeDialog(self)
         dialog.show()
 
     def on_btnLearn_clicked(self):
         learn_widget = LearnDialog(self)
-        learn_widget.ime.word_end() # dialog 다시 실행될 때 초기화
+        learn_widget.ime.word_end()  # dialog 다시 실행될 때 초기화
         learn_widget.exec()
 
 
