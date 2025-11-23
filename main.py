@@ -37,10 +37,12 @@ try:
             "correct.png": None,
             "wrong.png": None
         },
-        "learn.ui": None,
-        "memorize.ui": None,
-        "portal.ui": None,
-        "play.ui": None
+        "ui": {
+            "learn.ui": None,
+            "memorize.ui": None,
+            "portal.ui": None,
+            "play.ui": None
+        }
     }
 
     def download_asset(data, path=None):
@@ -57,20 +59,17 @@ try:
                     f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
                 ).content
 
+                # loadUi식으로 쓰려면 파일마냥 쓸 수 있게 StringIO를 쓰네
+                if k.endswith('.ui'):
+                    data[k] = io.StringIO(data[k].decode('utf-8'))
+
     download_asset(assets)
 
-    # assets["beep.wav"] = sf.read(
-    #     io.BytesIO(
-    #         requests.get(
-    #             "https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/sound/beep.wav").content
-    #     )
-    #     # 쌤이 적재하지 말고 온라인에서 가져오래서 ㅠㅠ sd에서 쓰기 위해 오디오 데이터와 샘플링데이터로 분리하는 과정... (tuple)
-    # )
+    assets["sound"]["beep.wav"] = sf.read(
+        io.BytesIO(assets["sound"]["beep.wav"])
+        # 쌤이 적재하지 말고 온라인에서 가져오래서 ㅠㅠ sd에서 쓰기 위해 오디오 데이터와 샘플링데이터로 분리하는 과정... (tuple)
+    )
     sd.default.latency = "low"  # 기본 레이턴시 왜 high냐 슬프네
-
-    # assets["img"]["dark"] = {
-    #     "숫자기호.svg": requests.get(r"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/img/dark/숫자기호.svg").content
-    # }
 
 
 except ImportError:
@@ -312,14 +311,8 @@ class IME:
         sd.stop()
 
     def start_beep(self):
-        sd.play(*assets["beep"], blocksize=1024)
+        sd.play(*assets["sound"]["beep.wav"], blocksize=1024)
 # endregion
-
-
-def getPixmap(image_name: str) -> QPixmap:
-    theme = "dark" if darkdetect.isDark() else "light"  # 다크모드 그거
-    image_path = f"./assets/img/{theme}/{image_name}"
-    return QPixmap(image_path)
 
 
 def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
@@ -356,7 +349,7 @@ class PlayDialog(QDialog):
 class LearnDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loadUi("./assets/learn.ui", self)
+        loadUi(assets["ui"]["learn.ui"], self)
 
         self.setGeometry(self.geometry())
         self.setWindowTitle(self.windowTitle())
@@ -374,14 +367,18 @@ class LearnDialog(QDialog):
 
         self.correct = QLabel(self)
         self.correct.setGeometry(0, 0, 800, 750)
+        correct_pixmap = QPixmap()
+        correct_pixmap.loadFromData(QByteArray(assets["img"]["correct.png"]))
         self.correct.setPixmap(
-            QPixmap("./assets/img/correct.png").scaled(800, 750))
+            correct_pixmap.scaled(800, 750))
         self.correct.raise_()
 
         self.wrong = QLabel(self)
         self.wrong.setGeometry(0, 0, 800, 750)
+        wrong_pixmap = QPixmap()
+        wrong_pixmap.loadFromData(QByteArray(assets["img"]["wrong.png"]))
         self.wrong.setPixmap(
-            QPixmap("./assets/img/wrong.png").scaled(800, 750))
+            wrong_pixmap.scaled(800, 750))
         self.wrong.raise_()
         self.correct.hide()
         self.wrong.hide()
@@ -461,7 +458,7 @@ class LearnDialog(QDialog):
 class MemorizeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loadUi("./assets/memorize.ui", self)
+        loadUi(assets["ui"]["memorize.ui"], self)
 
         self.setLayout(self.layout())
         self.setWindowTitle(self.windowTitle())
@@ -490,7 +487,7 @@ class MemorizeDialog(QDialog):
 class PortalWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        loadUi("./assets/portal.ui", self)
+        loadUi(assets["ui"]["portal.ui"], self)
         self.setCentralWidget(self.centralWidget())
         self.setGeometry(self.geometry())
         self.setWindowTitle(self.windowTitle())
