@@ -14,6 +14,7 @@ try:
     import soundfile as sf
     import requests
     import io
+    import threading
 
     # 메모리에 저장할 asset들.....
     assets = {
@@ -46,6 +47,20 @@ try:
     }
 
     def download_asset(data, path=None):
+        threads: list[threading.Thread] = []
+        log_lock = threading.Lock()
+
+        def download(new_path, k):
+            # 로그 겹쳐서 락 거니까 출력 제대로 되더라
+            with log_lock:
+                print("⬇️  downloading", "/".join(new_path))
+            data[k] = requests.get(
+                f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
+            ).content
+
+            with log_lock:
+                print("✅ downloaded", "/".join(new_path))
+
         if path == None:
             path = []
 
@@ -54,14 +69,14 @@ try:
             if isinstance(v, dict):
                 download_asset(v, new_path)
             else:
-                print("downlaoding", "/".join(new_path))
-                data[k] = requests.get(
-                    f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
-                ).content
+                # 쓰레딩 안 쓰면 하나하나 끝날때까지 받아서 너무 느리더라
+                t = threading.Thread(target=lambda: download(new_path, k))
+                threads.append(t)
+                t.start()
 
-                # loadUi식으로 쓰려면 파일마냥 쓸 수 있게 StringIO를 쓰네
-                if k.endswith('.ui'):
-                    data[k] = io.StringIO(data[k].decode('utf-8'))
+        # 다 다운될때까지 대기시키는거
+        for t in threads:
+            t.join()
 
     download_asset(assets)
 
@@ -344,12 +359,13 @@ class PlayNote(QLabel):
 class PlayDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        loadUi(io.BytesIO(assets["ui"]["play.ui"]), self)
 
 
 class LearnDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loadUi(assets["ui"]["learn.ui"], self)
+        loadUi(io.BytesIO(assets["ui"]["learn.ui"]), self)
 
         self.setGeometry(self.geometry())
         self.setWindowTitle(self.windowTitle())
@@ -398,12 +414,13 @@ class LearnDialog(QDialog):
         self.wrong.hide()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():  # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
+        # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
+        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
             self.ime.key_down()
         return super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
             self.ime.key_up()
         return super().keyReleaseEvent(event)
 
@@ -458,7 +475,7 @@ class LearnDialog(QDialog):
 class MemorizeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        loadUi(assets["ui"]["memorize.ui"], self)
+        loadUi(io.BytesIO(assets["ui"]["memorize.ui"]), self)
 
         self.setLayout(self.layout())
         self.setWindowTitle(self.windowTitle())
@@ -487,7 +504,7 @@ class MemorizeDialog(QDialog):
 class PortalWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        loadUi(assets["ui"]["portal.ui"], self)
+        loadUi(io.BytesIO(assets["ui"]["portal.ui"]), self)
         self.setCentralWidget(self.centralWidget())
         self.setGeometry(self.geometry())
         self.setWindowTitle(self.windowTitle())
@@ -514,9 +531,8 @@ class PortalWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication([])
 
-    font_path = os.path.join(os.path.dirname(
-        __file__), "assets", "font", "Jersey25-Regular.ttf")
-    id = QFontDatabase.addApplicationFont(font_path)
+    id = QFontDatabase.addApplicationFontFromData(
+        QByteArray(assets["font"]["Jersey25-Regular.ttf"]))
     jersey = QFontDatabase.applicationFontFamilies(id)[0]
     # app.setFont(QFont(jersey, 10))
 
