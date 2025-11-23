@@ -514,9 +514,11 @@ class PortalWindow(QMainWindow):
         # self.ui.label.setFont(jersey_font)
         self.btnMemorize.clicked.disconnect()
         self.btnLearn.clicked.disconnect()
+        self.btn_play.clicked.disconnect()
 
         self.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
         self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
+        self.btn_play.clicked.connect(self.on_btn_play_clicked)
 
     def on_btnMemorize_clicked(self):
         dialog = MemorizeDialog(self)
@@ -526,6 +528,11 @@ class PortalWindow(QMainWindow):
         learn_widget = LearnDialog(self)
         learn_widget.ime.word_end()  # dialog 다시 실행될 때 초기화
         learn_widget.exec()
+
+    def on_btn_play_clicked(self):
+        play_dialog = PlayDialog(self)
+        # play_dialog.ime.word_end()  # dialog 다시 실행될 때 초기화
+        play_dialog.exec()
 
 
 if __name__ == "__main__":
