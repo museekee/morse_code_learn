@@ -5,7 +5,7 @@ try:
     from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
-    from PyQt6.QtCore import Qt
+    from PyQt6.QtCore import Qt, QByteArray
     from PyQt6.QtSvg import QSvgRenderer
     from PyQt6 import QtCore
     import darkdetect
@@ -42,18 +42,35 @@ try:
         "portal.ui": None,
         "play.ui": None
     }
-    assets["beep.wav"] = sf.read(
-        io.BytesIO(
-            requests.get(
-                "https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/sound/beep.wav").content
-        )
-        # 쌤이 적재하지 말고 온라인에서 가져오래서 ㅠㅠ sd에서 쓰기 위해 오디오 데이터와 샘플링데이터로 분리하는 과정... (tuple)
-    )
+
+    def download_asset(data, path=None):
+        if path == None:
+            path = []
+
+        for k, v in data.items():
+            new_path = path + [k]
+            if isinstance(v, dict):
+                download_asset(v, new_path)
+            else:
+                print("downlaoding", "/".join(new_path))
+                data[k] = requests.get(
+                    f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
+                ).content
+
+    download_asset(assets)
+
+    # assets["beep.wav"] = sf.read(
+    #     io.BytesIO(
+    #         requests.get(
+    #             "https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/sound/beep.wav").content
+    #     )
+    #     # 쌤이 적재하지 말고 온라인에서 가져오래서 ㅠㅠ sd에서 쓰기 위해 오디오 데이터와 샘플링데이터로 분리하는 과정... (tuple)
+    # )
     sd.default.latency = "low"  # 기본 레이턴시 왜 high냐 슬프네
 
-    assets["img"]["dark"] = {
-        "숫자기호.svg": requests.get(r"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/img/dark/숫자기호.svg").content
-    }
+    # assets["img"]["dark"] = {
+    #     "숫자기호.svg": requests.get(r"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/img/dark/숫자기호.svg").content
+    # }
 
 
 except ImportError:
@@ -307,8 +324,8 @@ def getPixmap(image_name: str) -> QPixmap:
 
 def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
     theme = "dark" if darkdetect.isDark() else "light"  # 다크모드면 글자 하얀거 씀.
-    image_path = f"./assets/img/{theme}/{image_name}"  # svg 경로 만들기
-    renderer = QSvgRenderer(image_path)  # svg 렌더러
+    renderer = QSvgRenderer(QByteArray(
+        assets["img"][theme][image_name]))  # svg 렌더러
 
     pixmap = QPixmap(width, height)  # 여기에 svg 박을거임
     pixmap.fill(Qt.GlobalColor.transparent)
