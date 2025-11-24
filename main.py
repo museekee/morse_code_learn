@@ -5,7 +5,7 @@ try:
     from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
-    from PyQt6.QtCore import Qt, QByteArray
+    from PyQt6.QtCore import Qt, QByteArray, QTimer
     from PyQt6.QtSvg import QSvgRenderer
     from PyQt6 import QtCore
     import darkdetect
@@ -16,6 +16,7 @@ try:
     import io
     import threading
 
+    no_sound = True  # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
     assets = {
         "font": {
@@ -46,17 +47,26 @@ try:
         }
     }
 
-    def download_asset(data, path=None):
+    def download_asset(data, path=None, debug=False):
         threads: list[threading.Thread] = []
         log_lock = threading.Lock()
 
-        def download(new_path, k):
+        def download(new_path, k, debug):
             # 로그 겹쳐서 락 거니까 출력 제대로 되더라
             with log_lock:
                 print("⬇️  downloading", "/".join(new_path))
-            data[k] = requests.get(
-                f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
-            ).content
+            if debug == False:
+                data[k] = requests.get(
+                    f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
+                ).content
+            else:
+                file_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "assets",
+                    *new_path
+                )
+                with open(file_path, 'rb') as f:
+                    data[k] = f.read()
 
             with log_lock:
                 print("✅ downloaded", "/".join(new_path))
@@ -67,10 +77,11 @@ try:
         for k, v in data.items():
             new_path = path + [k]
             if isinstance(v, dict):
-                download_asset(v, new_path)
+                download_asset(v, new_path, debug)
             else:
                 # 쓰레딩 안 쓰면 하나하나 끝날때까지 받아서 너무 느리더라
-                t = threading.Thread(target=lambda: download(new_path, k))
+                t = threading.Thread(
+                    target=lambda: download(new_path, k, debug))
                 threads.append(t)
                 t.start()
 
@@ -78,7 +89,7 @@ try:
         for t in threads:
             t.join()
 
-    download_asset(assets)
+    download_asset(assets, debug=True)
 
     assets["sound"]["beep.wav"] = sf.read(
         io.BytesIO(assets["sound"]["beep.wav"])
@@ -323,9 +334,13 @@ class IME:
         self.key_down_type = None
 
     def stop_beep(self):
+        if no_sound:
+            return
         sd.stop()
 
     def start_beep(self):
+        if no_sound:
+            return
         sd.play(*assets["sound"]["beep.wav"], blocksize=1024)
 # endregion
 
@@ -346,11 +361,19 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
 
 
 class PlayNote(QLabel):
-    def __init__(self, char="A", lane=0):
-        super().__init__()
+    def __init__(self, parent=None, char="A", lane=0):
+        super().__init__(parent)
         self.setText(char)
-        self.setGeometry(200+(100*lane), 0, 100, 50)
-        self.setStyleSheet(r"")
+        self.setGeometry(200+(100*lane), self.height(), 100, 50)
+        bg_color = "#ffa"
+        if lane % 2 == 0:
+            bg_color = "#aaf"
+        text_color = "#000"
+        self.setStyleSheet(
+            rf"width: 100px; height: 50px; background-color: {bg_color}; border: 2px solid #000; border-radius: 10px; font-size: 24px; font-weight: bold; text-align: center; color: {text_color};"
+        )
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lower()
 
     def down(self):
         pass
@@ -360,6 +383,51 @@ class PlayDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         loadUi(io.BytesIO(assets["ui"]["play.ui"]), self)
+
+        self.setGeometry(self.geometry())
+        self.setWindowTitle(self.windowTitle())
+        self.setStyleSheet(self.styleSheet())
+        self.setFont(self.font())
+        self.setFixedSize(self.size())
+
+        self.max_life = 5
+        self.life = self.max_life
+        self.chong_note = 0
+        self.notes: list[PlayNote] = []
+
+        self.down_timer = QTimer(self)
+        self.down_timer.setInterval(50)  # 50ms마다 노트 내려감
+        self.down_timer.timeout.connect(self.on_down_timer)
+        self.down_timer.start()
+
+        self.gen_note_timer = QTimer(self)
+        self.gen_note_timer.setInterval(2000)  # 2초마다 노트 생성
+        self.gen_note_timer.timeout.connect(self.generate_note)
+        self.gen_note_timer.start()
+
+        self.dead_line = QLabel(self)
+        self.dead_line.setGeometry(0, self.height() - 100, self.width(), 10)
+        self.dead_line.setStyleSheet("background-color: red;")
+        self.dead_line.raise_()
+
+    def generate_note(self):
+        lane = random.randint(0, 3)
+        char = random.choice(list(en_word_map.values()))
+        note = PlayNote(self, char, lane)
+        self.notes.append(note)
+        note.show()
+        self.chong_note += 1
+
+    def on_down_timer(self):
+        for i in range(len(self.notes) - 1, -1, -1):
+            note = self.notes[i]
+            note.move(note.x(), note.y() + 5)  # 노트 아래로 5픽셀 이동
+            if note.y() > self.height() - 100 - note.height():  # 노트가 창 바닥을 넘어갔을 때
+                self.notes.pop(i)  # 리스트에서 제거
+                note.deleteLater()  # Qt 객체 메모리 해제
+                self.life -= 1
+                self.heart_label.setText(
+                    "❤️" * self.life + "🖤" * (self.max_life - self.life))
 
 
 class LearnDialog(QDialog):
@@ -377,7 +445,7 @@ class LearnDialog(QDialog):
             on_signal=self.on_ime_signal,
             on_ended_char=self.on_ime_ended_char,
             on_ended_word=self.on_ime_ended_word,
-            no_delay=True
+            no_delay=False
         )  # ime 만듦.
         self.ime.word_gap = self.ime.don_time * 4
 
