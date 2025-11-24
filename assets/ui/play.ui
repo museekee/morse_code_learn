@@ -61,7 +61,7 @@
       </item>
      </layout>
     </item>
-    <item alignment="Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter">
+    <item alignment="Qt::AlignmentFlag::AlignRight">
      <widget class="QLabel" name="heart_label">
       <property name="font">
        <font>
@@ -75,6 +75,84 @@
      </widget>
     </item>
    </layout>
+  </widget>
+  <widget class="QWidget" name="widget" native="true">
+   <property name="geometry">
+    <rect>
+     <x>100</x>
+     <y>660</y>
+     <width>600</width>
+     <height>80</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">
+	background-color: #ffffff;
+	border-radius: 15px;
+	border: 5px solid #000000
+</string>
+   </property>
+   <widget class="QLabel" name="char_label">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>80</width>
+      <height>80</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Jersey 25</family>
+      <pointsize>48</pointsize>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color: #000000;
+width: 100%;
+text-align: center;
+border: none;
+padding: 5px;
+background: none;</string>
+    </property>
+    <property name="text">
+     <string>1</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignmentFlag::AlignCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="morse_label">
+    <property name="geometry">
+     <rect>
+      <x>80</x>
+      <y>5</y>
+      <width>520</width>
+      <height>70</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>맑은 고딕</family>
+      <pointsize>48</pointsize>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">border: none;
+border-left: 3px solid #696969;
+background: none;
+border-radius: 0px;
+padding: 5px;
+color: #000000;</string>
+    </property>
+    <property name="text">
+     <string>ㆍㅡㅡㅡㅡ</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+    </property>
+   </widget>
   </widget>
  </widget>
  <resources/>

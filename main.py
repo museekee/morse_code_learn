@@ -318,6 +318,15 @@ class IME:
         else:  # 올바르지 않은 모스부호
             self.morse_word[self.now_char_idx] = []  # 현재 글자 모스부호 초기화
 
+    def to_char(self, morse: str) -> str:
+        word_map = en_word_map if self.lang == "en" else ko_word_map  # 언어에 맞는 모스부호 리스트를 가져옴
+        if morse in word_map:  # 언어 모스부호
+            return word_map[morse]
+        elif morse in common_word_map:  # 기호 숫자 등 공통 모스부호
+            return common_word_map[morse]
+        else:
+            return ""
+
     def word_end(self):
         # 단어 종료 시 ime 초기화
         self.on_ended_word(self.word)
@@ -395,20 +404,31 @@ class PlayDialog(QDialog):
         self.chong_note = 0
         self.notes: list[PlayNote] = []
 
+        self.ime = IME(
+            on_signal=self.on_ime_signal,
+            on_ended_char=self.on_ime_ended_char,
+            on_ended_word=self.on_ime_ended_word,
+            no_delay=True
+        )  # ime
+        self.ime.word_gap = self.ime.don_time * 4
+        self.morse = ""
+
         self.down_timer = QTimer(self)
-        self.down_timer.setInterval(50)  # 50ms마다 노트 내려감
+        self.down_timer.setInterval(100)  # 100ms마다 노트 내려감
         self.down_timer.timeout.connect(self.on_down_timer)
         self.down_timer.start()
 
         self.gen_note_timer = QTimer(self)
-        self.gen_note_timer.setInterval(2000)  # 2초마다 노트 생성
+        self.gen_note_timer.setInterval(4000)  # 4초마다 노트 생성
         self.gen_note_timer.timeout.connect(self.generate_note)
         self.gen_note_timer.start()
 
         self.dead_line = QLabel(self)
-        self.dead_line.setGeometry(0, self.height() - 100, self.width(), 10)
+        self.dead_line.setGeometry(0, self.height() - 110, self.width(), 10)
         self.dead_line.setStyleSheet("background-color: red;")
         self.dead_line.raise_()
+
+        # Todo: 점수를 올리고 점수는 단계에 배율. 단계는 점수에 따라 차등.
 
     def generate_note(self):
         lane = random.randint(0, 3)
@@ -422,12 +442,46 @@ class PlayDialog(QDialog):
         for i in range(len(self.notes) - 1, -1, -1):
             note = self.notes[i]
             note.move(note.x(), note.y() + 5)  # 노트 아래로 5픽셀 이동
-            if note.y() > self.height() - 100 - note.height():  # 노트가 창 바닥을 넘어갔을 때
+            if note.y() > self.dead_line.y() - note.height():  # 노트가 데드라인에 닿을 때
                 self.notes.pop(i)  # 리스트에서 제거
                 note.deleteLater()  # Qt 객체 메모리 해제
                 self.life -= 1
                 self.heart_label.setText(
                     "❤️" * self.life + "🖤" * (self.max_life - self.life))
+                if self.life <= 0:
+                    self.on_dead()
+
+    def on_dead(self):
+        self.gen_note_timer.stop()
+        self.down_timer.stop()
+
+    def keyPressEvent(self, event):
+        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+            self.ime.key_down()
+        return super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+            self.ime.key_up()
+        return super().keyReleaseEvent(event)
+
+    def on_ime_signal(self, signal):
+        self.morse += signal
+        self.morse_label.setText(self.morse)
+        self.char_label.setText(self.ime.to_char(self.morse))
+
+    def on_ime_ended_char(self, morse, char):
+        pass
+
+    def on_ime_ended_word(self, word):
+        for note in self.notes:
+            if note.text() == word:
+                self.notes.remove(note)  # 리스트에서 제거
+                note.deleteLater()  # Qt 객체 메모리 해제
+                break
+        self.morse = ""
+        self.morse_label.setText("")
+        self.char_label.setText("")
 
 
 class LearnDialog(QDialog):
