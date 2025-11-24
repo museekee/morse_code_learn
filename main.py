@@ -403,6 +403,9 @@ class PlayDialog(QDialog):
         self.life = self.max_life
         self.chong_note = 0
         self.notes: list[PlayNote] = []
+        self.score = 0
+        self.combo = 0
+        self.level = 1
 
         self.ime = IME(
             on_signal=self.on_ime_signal,
@@ -412,6 +415,8 @@ class PlayDialog(QDialog):
         )  # ime
         self.ime.word_gap = self.ime.don_time * 4
         self.morse = ""
+
+        self.generate_note()  # 처음에 하나 생성
 
         self.down_timer = QTimer(self)
         self.down_timer.setInterval(100)  # 100ms마다 노트 내려감
@@ -474,14 +479,46 @@ class PlayDialog(QDialog):
         pass
 
     def on_ime_ended_word(self, word):
+        self.ime.ignore_key = True
         for note in self.notes:
             if note.text() == word:
+                self.combo += 1
+                self.add_score(1, level=1, note_y=note.y())
                 self.notes.remove(note)  # 리스트에서 제거
                 note.deleteLater()  # Qt 객체 메모리 해제
                 break
+        else:
+            self.combo = 0  # 콤보 초기화
+            self.combo_label.setText(f"Combo: {self.combo}")
         self.morse = ""
         self.morse_label.setText("")
         self.char_label.setText("")
+        self.ime.ignore_key = False
+
+    def add_score(self, amount, level=1, note_y=750):
+        jjeonda = 1
+        if 0 <= note_y < 150:
+            jjeonda = 100
+        elif 150 <= note_y < 300:
+            jjeonda = 70
+        elif 300 <= note_y < 450:
+            jjeonda = 50
+        elif 450 <= note_y < 600:
+            jjeonda = 30
+        elif 600 <= note_y < 750:
+            jjeonda = 10
+        else:
+            jjeonda = 1
+        jjeonda *= self.combo * level * 0.5
+        self.score += int(amount * jjeonda)
+        self.score_label.setText(f"{self.score}".rjust(6, '0'))
+        self.combo_label.setText(f"Combo: {self.combo}")
+
+    def add_level(self):
+        if self.level >= 5:
+            return
+        self.level += 1
+        self.level_label.setText(f"Lv {self.level}/5")
 
 
 class LearnDialog(QDialog):

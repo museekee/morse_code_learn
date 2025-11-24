@@ -79,9 +79,9 @@
   <widget class="QWidget" name="widget" native="true">
    <property name="geometry">
     <rect>
-     <x>100</x>
+     <x>200</x>
      <y>660</y>
-     <width>600</width>
+     <width>500</width>
      <height>80</height>
     </rect>
    </property>
@@ -127,7 +127,7 @@ background: none;</string>
      <rect>
       <x>80</x>
       <y>5</y>
-      <width>520</width>
+      <width>410</width>
       <height>70</height>
      </rect>
     </property>
@@ -144,15 +144,60 @@ border-left: 3px solid #696969;
 background: none;
 border-radius: 0px;
 padding: 5px;
-color: #000000;</string>
+color: #000000;
+padding-left: -15px;</string>
     </property>
     <property name="text">
-     <string>ㆍㅡㅡㅡㅡ</string>
+     <string>ㆍㅡㅡㅡㅡㅡ</string>
     </property>
     <property name="alignment">
      <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
     </property>
    </widget>
+  </widget>
+  <widget class="QWidget" name="verticalLayoutWidget">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>660</y>
+     <width>160</width>
+     <height>80</height>
+    </rect>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_2">
+    <item>
+     <widget class="QLabel" name="level_label">
+      <property name="font">
+       <font>
+        <family>Jersey 25</family>
+        <pointsize>24</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Lv 1/5</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="combo_label">
+      <property name="font">
+       <font>
+        <family>Jersey 25</family>
+        <pointsize>24</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Combo: 1</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+      </property>
+     </widget>
+    </item>
+   </layout>
   </widget>
  </widget>
  <resources/>
