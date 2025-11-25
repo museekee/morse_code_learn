@@ -370,6 +370,25 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
     return pixmap  # 줌.
 
 
+class RoomConnector(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        loadUi(io.BytesIO(assets["ui"]["room_connector.ui"]), self)
+
+        self.setGeometry(self.geometry())
+        self.setWindowTitle(self.windowTitle())
+        self.setStyleSheet(self.styleSheet())
+        self.setFont(self.font())
+        self.setFixedSize(self.size())
+
+        self.buttonBox.accepted.connect(self.on_accept)
+
+    def on_accept(self):
+        room_code = self.room_id_edit.text()
+        print("방 코드:", room_code)
+        self.accept()
+
+
 class PlayNote(QLabel):
     def __init__(self, parent=None, char="A", lane=0):
         super().__init__(parent)
