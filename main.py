@@ -4,7 +4,7 @@ try:
     from PyQt6.QtCore import QFile
     from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout
     from PyQt6.uic import loadUi
-    from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
+    from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase, QTextCursor
     from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
     from PyQt6.QtSvg import QSvgRenderer
     from PyQt6 import QtCore
@@ -17,6 +17,7 @@ try:
     import io
     import threading
     import json
+    import winsound
 
     no_sound = True  # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
@@ -453,6 +454,10 @@ class Room(QDialog):
             if self.was_my_turn:  # 저번이 내 차례였으면
                 self.now_label_idx += 1  # 다음 라벨로 넘기기
                 self.was_my_turn = False  # 그리고 내 차례는 아님.
+                # if data["message"] == 'ㆍ':
+                #     winsound.Beep(700, 100)  # 비프음 재생
+                # else:
+                #     winsound.Beep(700, 200)  # 비프음 재생
 
         if data["event"] == "word":
             self.add_message_word(data["word"])
@@ -473,6 +478,10 @@ class Room(QDialog):
 
         label.setText(label.text() + " " + message)
         print("메시지 추가:", message)
+        # label.moveCursor(QTextCursor.End)
+        # label.ensureCursorVisible()
+        scroller = self.scrollArea.verticalScrollBar()
+        scroller.setValue(scroller.maximum()+999)
 
     def closeEvent(self, a0):
         self.ws.close()
