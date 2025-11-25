@@ -48,6 +48,17 @@
        <pointsize>24</pointsize>
       </font>
      </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QScrollArea {
+	border-radius: 15px;
+	border: 5px solid #000000;
+	padding: 5px 10px;
+}
+background: transparent;</string>
+     </property>
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -59,7 +70,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>748</width>
+        <width>720</width>
         <height>74</height>
        </rect>
       </property>

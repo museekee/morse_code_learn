@@ -5,9 +5,10 @@ try:
     from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
-    from PyQt6.QtCore import Qt, QByteArray, QTimer
+    from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
     from PyQt6.QtSvg import QSvgRenderer
     from PyQt6 import QtCore
+    from PyQt6.QtWebSockets import QWebSocket
     import darkdetect
     import random
     import sounddevice as sd
@@ -15,6 +16,7 @@ try:
     import requests
     import io
     import threading
+    import json
 
     no_sound = True  # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
@@ -44,7 +46,8 @@ try:
             "memorize.ui": None,
             "portal.ui": None,
             "play.ui": None,
-            "room_connector.ui": None
+            "room_connector.ui": None,
+            "room.ui": None
         }
     }
 
@@ -370,6 +373,67 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
     return pixmap  # 줌.
 
 
+class Room(QDialog):
+    def __init__(self, parent=None, room_code=""):
+        super().__init__(parent)
+        loadUi(io.BytesIO(assets["ui"]["room.ui"]), self)
+
+        self.setGeometry(self.geometry())
+        self.setWindowTitle(self.windowTitle())
+        self.setStyleSheet(self.styleSheet())
+        self.setFont(self.font())
+        self.setFixedSize(self.size())
+
+        self.ws = QWebSocket()
+        self.ws.connected.connect(lambda: self.connected(room_code))
+        self.ws.textMessageReceived.connect(self.on_message)
+        self.ws.open(QUrl("ws://msk.dimigo.co.kr:8765"))  # 웹소켓 접속하기
+
+        self.ime = IME(
+            on_signal=self.on_ime_signal,
+            on_ended_char=self.on_ime_ended_char,
+            on_ended_word=self.on_ime_ended_word,
+            no_delay=True
+        )
+
+    def connected(self, room_code):
+        self.ws.sendTextMessage(json.dumps(  # 방에 접속시키기.
+            {"event": "join", "room": room_code}
+        ))
+        print("웹소켓 연결됨")
+
+    def keyPressEvent(self, event):
+        # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
+        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+            self.ime.key_down()
+        return super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+            self.ime.key_up()
+        return super().keyReleaseEvent(event)
+
+    def on_ime_signal(self, signal):
+        # 지금 쓰고있는 글자(char)을 문자로 변환.
+        compl = "".join(self.ime.morse_word[self.ime.now_char_idx])
+        self.morse_label.setText(compl)
+        self.str_label.setText(
+            self.ime.word + self.ime.to_char(compl))  # 지금까지 쓴 단어 + 지금 글자
+        self.ws.sendTextMessage(json.dumps(
+            {"event": "morse", "message": signal}  # 모스부호 누를 때마다 서버로 전송
+        ))
+
+    def on_ime_ended_char(self, morse, char):
+        self.morse_label.setText("")  # 글자 하나 완성되면 morse초기화
+
+    def on_ime_ended_word(self, word):
+        self.morse_label.setText("")
+        self.str_label.setText("")
+
+    def on_message(self, message):
+        print("받은 메시지:", message)
+
+
 class RoomConnector(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -386,6 +450,7 @@ class RoomConnector(QDialog):
     def on_accept(self):
         room_code = self.room_id_edit.text()
         print("방 코드:", room_code)
+        self.room_code = room_code
         self.accept()
 
 
@@ -757,10 +822,12 @@ class PortalWindow(QMainWindow):
         self.btnMemorize.clicked.disconnect()
         self.btnLearn.clicked.disconnect()
         self.btn_play.clicked.disconnect()
+        self.btn_together.clicked.disconnect()
 
         self.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
         self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
         self.btn_play.clicked.connect(self.on_btn_play_clicked)
+        self.btn_together.clicked.connect(self.on_btn_together_clicked)
 
     def on_btnMemorize_clicked(self):
         dialog = MemorizeDialog(self)
@@ -775,6 +842,12 @@ class PortalWindow(QMainWindow):
         play_dialog = PlayDialog(self)
         # play_dialog.ime.word_end()  # dialog 다시 실행될 때 초기화
         play_dialog.exec()
+
+    def on_btn_together_clicked(self):
+        room_connector = RoomConnector(self)
+        if room_connector.exec() == QDialog.DialogCode.Accepted:
+            room = Room(self, room_connector.room_code)
+            room.exec()
 
 
 # 일화 2: 멀티 기능을 클라이언트가 서버 노릇도 하고 클라이언트 노릇도 하게 만들려 했는데,
