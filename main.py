@@ -2,7 +2,7 @@
 try:
     import os
     from PyQt6.QtCore import QFile
-    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
     from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
@@ -374,6 +374,8 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
 
 
 class Room(QDialog):
+    sig_send_word = QtCore.pyqtSignal(str)
+
     def __init__(self, parent=None, room_code=""):
         super().__init__(parent)
         loadUi(io.BytesIO(assets["ui"]["room.ui"]), self)
@@ -382,12 +384,16 @@ class Room(QDialog):
         self.setWindowTitle(self.windowTitle())
         self.setStyleSheet(self.styleSheet())
         self.setFont(self.font())
-        self.setFixedSize(self.size())
 
         self.ws = QWebSocket()
         self.ws.connected.connect(lambda: self.connected(room_code))
         self.ws.textMessageReceived.connect(self.on_message)
         self.ws.open(QUrl("ws://msk.dimigo.co.kr:8765"))  # 웹소켓 접속하기
+
+        self.now_label_idx = 0
+        self.was_my_turn = False
+        self.messages: list[QLabel] = []
+        self.sig_send_word.connect(self.send_word_message)
 
         self.ime = IME(
             on_signal=self.on_ime_signal,
@@ -415,6 +421,9 @@ class Room(QDialog):
 
     def on_ime_signal(self, signal):
         # 지금 쓰고있는 글자(char)을 문자로 변환.
+        if self.was_my_turn == False:  # 저번이 남 차례였으면
+            self.now_label_idx += 1  # 내 걸 적기 위해 다음 라벨로 넘기기
+            self.was_my_turn = True  # 그리고 내 차례임.
         compl = "".join(self.ime.morse_word[self.ime.now_char_idx])
         self.morse_label.setText(compl)
         self.str_label.setText(
@@ -427,11 +436,51 @@ class Room(QDialog):
         self.morse_label.setText("")  # 글자 하나 완성되면 morse초기화
 
     def on_ime_ended_word(self, word):
+        self.sig_send_word.emit(word)
+
+    def send_word_message(self, word):
+        self.ws.sendTextMessage(json.dumps(
+            {"event": "word", "word": word}  # 단어 완성되면 서버로 전송
+        ))
+
+        self.add_message_word(word)
         self.morse_label.setText("")
         self.str_label.setText("")
 
     def on_message(self, message):
-        print("받은 메시지:", message)
+        data = json.loads(message)
+        if data["event"] == "morse":  # 다른사람이 보낸 모스부호
+            if self.was_my_turn:  # 저번이 내 차례였으면
+                self.now_label_idx += 1  # 다음 라벨로 넘기기
+                self.was_my_turn = False  # 그리고 내 차례는 아님.
+
+        if data["event"] == "word":
+            self.add_message_word(data["word"])
+
+    def add_message_word(self, message):
+        if self.now_label_idx >= len(self.messages):  # 새 라벨이 필요하면
+            label = QLabel(self)
+            self.scroll_widget.layout().addWidget(label)
+            label.setObjectName(f"message_label_{self.now_label_idx}")
+            label.setFont(QFont("Jersey 25", 24, QFont.Weight.Bold))
+            if self.was_my_turn:
+                label.setStyleSheet("color: #eee;")
+            else:
+                label.setStyleSheet("color: #ff8;")
+            self.messages.append(label)
+        else:  # 기존 라벨 사용
+            label = self.messages[self.now_label_idx]
+
+        label.setText(label.text() + " " + message)
+        print("메시지 추가:", message)
+
+    def closeEvent(self, a0):
+        self.ws.close()
+        self.now_label_idx = 0
+        self.was_my_turn = False
+        self.messages = []
+        self.ime.word_end()
+        return super().closeEvent(a0)
 
 
 class RoomConnector(QDialog):
