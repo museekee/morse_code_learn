@@ -190,7 +190,7 @@ padding-left: -15px;</string>
        </font>
       </property>
       <property name="text">
-       <string>Combo: 1</string>
+       <string>Combo: 0</string>
       </property>
       <property name="alignment">
        <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>

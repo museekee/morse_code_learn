@@ -43,7 +43,8 @@ try:
             "learn.ui": None,
             "memorize.ui": None,
             "portal.ui": None,
-            "play.ui": None
+            "play.ui": None,
+            "room_connector.ui": None
         }
     }
 
@@ -389,9 +390,13 @@ class PlayNote(QLabel):
 
 
 class PlayDialog(QDialog):
+    sig_set_level = QtCore.pyqtSignal(int)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         loadUi(io.BytesIO(assets["ui"]["play.ui"]), self)
+
+        self.sig_set_level.connect(self.real_update_level)
 
         self.setGeometry(self.geometry())
         self.setWindowTitle(self.windowTitle())
@@ -459,6 +464,23 @@ class PlayDialog(QDialog):
     def on_dead(self):
         self.gen_note_timer.stop()
         self.down_timer.stop()
+        self.ime.ignore_key = True
+        self.override_back = QLabel(self)
+        self.override_back.setGeometry(0, 0, self.width(), self.height())
+        self.override_back.setStyleSheet("background-color: black;")
+        self.override_back.raise_()
+        self.override_back.show()
+        self.override_back.setFocus()
+
+        self.override_score = QLabel(self)
+        self.override_score.setGeometry(0, 0, self.width(), self.height())
+        self.override_score.setStyleSheet(
+            "color: white; font-size: 48px; font-weight: bold;")
+        self.override_score.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.override_score.setText(f"게임 오-버!\n점수: {self.score}")
+        self.override_score.setFont(QFont("Jersey 25", 48))
+        self.override_score.raise_()
+        self.override_score.show()
 
     def keyPressEvent(self, event):
         if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
@@ -490,13 +512,22 @@ class PlayDialog(QDialog):
         else:
             self.combo = 0  # 콤보 초기화
             self.combo_label.setText(f"Combo: {self.combo}")
+        if self.score >= 1000:
+            self.set_level(2)
+        if self.score >= 3000:
+            self.set_level(3)
+        if self.score >= 6000:
+            self.set_level(4)
+        if self.score >= 10000:
+            self.set_level(5)
         self.morse = ""
         self.morse_label.setText("")
         self.char_label.setText("")
         self.ime.ignore_key = False
 
-    def add_score(self, amount, level=1, note_y=750):
+    def add_score(self, amount=1, level=1, note_y=750):
         jjeonda = 1
+        # 얼마나 먼저 해치웠느냐에 따라 가중치 차등 부여
         if 0 <= note_y < 150:
             jjeonda = 100
         elif 150 <= note_y < 300:
@@ -509,15 +540,48 @@ class PlayDialog(QDialog):
             jjeonda = 10
         else:
             jjeonda = 1
-        jjeonda *= self.combo * level * 0.5
+        if level == 1:
+            jjeonda *= 1
+        elif level == 2:
+            jjeonda *= 1.4
+        elif level == 3:
+            jjeonda *= 1.8
+        elif level == 4:
+            jjeonda *= 2.2
+        elif level == 5:
+            jjeonda *= 2.5
+        jjeonda *= self.combo * 0.5 + 1  # 콤보 배율
         self.score += int(amount * jjeonda)
         self.score_label.setText(f"{self.score}".rjust(6, '0'))
         self.combo_label.setText(f"Combo: {self.combo}")
 
-    def add_level(self):
-        if self.level >= 5:
+    def set_level(self, level):
+        self.sig_set_level.emit(level)
+
+    def real_update_level(self, level):
+        if self.level >= 5 or level <= self.level:
             return
-        self.level += 1
+        self.level = level
+
+        # 같은 스레드에서 죽이고 시작하도록 죽이기.
+        self.gen_note_timer.stop()
+        self.down_timer.stop()
+
+        if self.level == 2:
+            self.gen_note_timer.setInterval(3500)
+            self.down_timer.setInterval(80)
+        elif self.level == 3:
+            self.gen_note_timer.setInterval(3000)
+            self.down_timer.setInterval(70)
+        elif self.level == 4:
+            self.gen_note_timer.setInterval(2500)
+            self.down_timer.setInterval(60)
+        elif self.level == 5:
+            self.gen_note_timer.setInterval(2000)
+            self.down_timer.setInterval(50)
+
+        self.gen_note_timer.start()
+        self.down_timer.start()
         self.level_label.setText(f"Lv {self.level}/5")
 
 
@@ -694,6 +758,8 @@ class PortalWindow(QMainWindow):
         play_dialog.exec()
 
 
+# 일화 2: 멀티 기능을 클라이언트가 서버 노릇도 하고 클라이언트 노릇도 하게 만들려 했는데,
+# 코드가 복잡해질 것 같아 서버로 따로 뺌 ㅎㅎ
 if __name__ == "__main__":
     app = QApplication([])
 
