@@ -2,7 +2,7 @@
 try:
     import os
     from PyQt6.QtCore import QFile
-    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout, QCheckBox
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase, QTextCursor
     from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
@@ -18,6 +18,7 @@ try:
     import threading
     import json
     import winsound
+    import configparser
 
     no_sound = True  # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
@@ -48,7 +49,8 @@ try:
             "portal.ui": None,
             "play.ui": None,
             "room_connector.ui": None,
-            "room.ui": None
+            "room.ui": None,
+            "setting.ui": None
         }
     }
 
@@ -102,6 +104,26 @@ try:
     )
     sd.default.latency = "low"  # 기본 레이턴시 왜 high냐 슬프네
 
+    config = configparser.ConfigParser()
+
+    def load_config():
+        global config
+        if not os.path.exists("1401_config.ini"):
+            config['setting'] = {
+                'exclude_chars': '',  # | 로 구분
+                'automatic_time_adjustment': 'true',
+                'don_time': '100',
+                'tsu_time': '300',
+                'morse_gap': '100',
+                'char_gap': '300',
+                'word_gap': '700'
+            }
+            with open("1401_config.ini", 'w') as f:
+                config.write(f)
+        else:
+            config.read("1401_config.ini", encoding="utf-8")
+
+    load_config()
 
 except ImportError:
     import pip
@@ -213,13 +235,19 @@ ko_word_map = {
 
 
 class IME:
-    don_time = 100  # ㆍ(돈) 시간
-    tsu_time = don_time * 3  # ㅡ(쓰) 시간
+    don_time = int(config['setting']['don_time'])  # ㆍ(돈) 시간
+    if not config['setting'].getboolean('automatic_time_adjustment'):
+        tsu_time = int(config['setting']['tsu_time'])  # ㅡ(쓰) 시간
+        morse_gap = int(config['setting']['morse_gap'])
+        char_gap = int(config['setting']['char_gap'])
+        word_gap = int(config['setting']['word_gap'])
+    else:
+        tsu_time = don_time * 3  # ㅡ(쓰) 시간
+        morse_gap = don_time  # 모스부호(신호)간 간격 <= 이거보다 일찍 입력하면 입력 묵살
+        char_gap = don_time * 3
+        # -> ^^ <- 글자간 간격. <= morse_gap <= time <= char_gap에 입력이 없으면 글자 종료. 만약 제대로 된 문자가 안 만들어지면 그 문자는 버림.
+        word_gap = don_time * 7  # 단어간 간격(이만큼 지나면 ime 초기화. (한영 정보는 유지))
     plusminus = 100  # 입력 오차 범위
-    morse_gap = don_time  # 모스부호(신호)간 간격 <= 이거보다 일찍 입력하면 입력 묵살
-    char_gap = don_time * 3
-    # -> ^^ <- 글자간 간격. <= morse_gap <= time <= char_gap에 입력이 없으면 글자 종료. 만약 제대로 된 문자가 안 만들어지면 그 문자는 버림.
-    word_gap = don_time * 7  # 단어간 간격(이만큼 지나면 ime 초기화. (한영 정보는 유지))
 
     lang = "en"
     start_time = 0  # 키 누른 시간
@@ -374,7 +402,42 @@ def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
     return pixmap  # 줌.
 
 
-class Room(QDialog):
+class SettingDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        loadUi(io.BytesIO(assets["ui"]["setting.ui"]), self)
+
+        self.setGeometry(self.geometry())
+        self.setWindowTitle(self.windowTitle())
+        self.setStyleSheet(self.styleSheet())
+        self.setFont(self.font())
+        self.setFixedSize(self.size())
+
+        self.buttonBox.accepted.connect(self.on_accept)
+        self.buttonBox.applied.connect(self.on_apply)
+
+        excluded = config['setting']['exclude_chars'].split('|')  # 제외된 문자 목록
+        en_word_map_values = list(en_word_map.values())  # 알파벳 값들 가져오기
+        common_word_map_values = list(
+            common_word_map.values())  # 숫자/기호 값들 가져오기
+
+        for k in en_word_map_values:
+            check = QCheckBox(k)
+            self.abc_list.addWidget(check)
+            if k in excluded:
+                check.setChecked(False)
+            else:
+                check.setChecked(True)
+
+    def on_accept(self):
+        self.on_apply()
+        self.accept()
+
+    def on_apply(self):
+        pass
+
+
+class RoomDialog(QDialog):
     sig_send_word = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None, room_code=""):
@@ -492,7 +555,7 @@ class Room(QDialog):
         return super().closeEvent(a0)
 
 
-class RoomConnector(QDialog):
+class RoomConnectorDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         loadUi(io.BytesIO(assets["ui"]["room_connector.ui"]), self)
@@ -902,9 +965,9 @@ class PortalWindow(QMainWindow):
         play_dialog.exec()
 
     def on_btn_together_clicked(self):
-        room_connector = RoomConnector(self)
+        room_connector = RoomConnectorDialog(self)
         if room_connector.exec() == QDialog.DialogCode.Accepted:
-            room = Room(self, room_connector.room_code)
+            room = RoomDialog(self, room_connector.room_code)
             room.exec()
 
 
