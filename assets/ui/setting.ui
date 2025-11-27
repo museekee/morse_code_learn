@@ -57,10 +57,40 @@
            <number>15</number>
           </property>
           <item>
-           <layout class="QVBoxLayout" name="abc_list"/>
+           <layout class="QVBoxLayout" name="abc_list">
+            <item>
+             <widget class="QPushButton" name="dis_chr">
+              <property name="text">
+               <string>문자 비활성화</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="abl_chr">
+              <property name="text">
+               <string>문자 활성화</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
-           <layout class="QVBoxLayout" name="other_list"/>
+           <layout class="QVBoxLayout" name="other_list">
+            <item>
+             <widget class="QPushButton" name="dis_num">
+              <property name="text">
+               <string>숫자/기호 비활성화</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="abl_num">
+              <property name="text">
+               <string>숫자/기호 활성화</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>

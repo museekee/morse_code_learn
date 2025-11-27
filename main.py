@@ -54,6 +54,7 @@ try:
         }
     }
 
+    # 딕셔너리 재귀는 구글에서 검색함 ㅠ
     def download_asset(data, path=None, debug=False):
         threads: list[threading.Thread] = []
         log_lock = threading.Lock()
@@ -61,7 +62,7 @@ try:
         def download(new_path, k, debug):
             # 로그 겹쳐서 락 거니까 출력 제대로 되더라
             with log_lock:
-                print("⬇️  downloading", "/".join(new_path))
+                print("[Downloading]", "/".join(new_path))
             if debug == False:
                 data[k] = requests.get(
                     f"https://github.com/museekee/morse_code_learn/raw/refs/heads/main/assets/{"/".join(new_path)}"
@@ -76,7 +77,7 @@ try:
                     data[k] = f.read()
 
             with log_lock:
-                print("✅ downloaded", "/".join(new_path))
+                print("[Downloaded]", "/".join(new_path))
 
         if path == None:
             path = []
@@ -240,6 +241,7 @@ ko_word_map = {
 
 class IME:
     don_time = int(config['setting']['don_time'])  # ㆍ(돈) 시간
+    # 자동 조정 비활성화시, 수동 설정 됨. (위험)
     if not config['setting'].getboolean('automatic_time_adjustment'):
         tsu_time = int(config['setting']['tsu_time'])  # ㅡ(쓰) 시간
         morse_gap = int(config['setting']['morse_gap'])
@@ -272,15 +274,14 @@ class IME:
         on_signal=(lambda signal: None),
         on_ended_char=(lambda morse, char: None),
         on_ended_word=(lambda word: None),
-        on_ignored=(lambda: None),
-        no_delay=False
+        on_ignored=(lambda: None)
     ):
         print("모스부호 IME 준비 완료")
         self.on_signal = on_signal
         self.on_ended_char = on_ended_char
         self.on_ended_word = on_ended_word
         self.on_ignored = on_ignored
-        if no_delay:
+        if not config['setting'].getboolean('delay'):
             self.morse_gap = 0
 
     def sync(self):
@@ -432,9 +433,11 @@ class SettingDialog(QDialog):
         en_word_map_keys = list(en_word_map.keys())  # 알파벳 값들 가져오기
         common_word_map_keys = list(common_word_map.keys())  # 숫자/기호 값들 가져오기
 
+        en_checks = []
         for k in en_word_map_keys:
             v = en_word_map[k]
             check = QCheckBox(f"{v} [{k} ]", self)
+            en_checks.append(check)
             check.setFont(QFont("Jersey 25", 9))
             self.abc_list.addWidget(check)
             if v in self.excluded:
@@ -446,9 +449,11 @@ class SettingDialog(QDialog):
                 lambda checked, char=v: self.on_ex_check_changed(checked, char)
             )
 
+        common_checks = []
         for k in common_word_map_keys:
             v = common_word_map[k]
             check = QCheckBox(f"{v} [{k}]", self)
+            common_checks.append(check)
             self.other_list.addWidget(check)
             if v in self.excluded:
                 check.setChecked(False)
@@ -458,6 +463,34 @@ class SettingDialog(QDialog):
             check.clicked.connect(
                 lambda checked, char=v: self.on_ex_check_changed(checked, char)
             )
+
+        def on_chr_clicked(checked):
+            for check in en_checks:
+                check.setChecked(checked)
+            if checked:
+                self.excluded = list(filter(
+                    lambda x: x not in en_word_map.values(), self.excluded
+                ))
+            else:
+                self.excluded += list(en_word_map.values())
+            self.excluded = list(set(self.excluded))  # 중복제거
+
+        def on_common_clicked(checked):
+            for check in common_checks:
+                check.setChecked(checked)
+            if checked:
+                self.excluded = list(filter(
+                    lambda x: x not in common_word_map.values(), self.excluded
+                ))
+            else:
+                self.excluded += list(common_word_map.values())
+            self.excluded = list(set(self.excluded))  # 중복제거
+
+        self.dis_chr.clicked.connect(lambda: on_chr_clicked(False))
+        self.abl_chr.clicked.connect(lambda: on_chr_clicked(True))
+
+        self.dis_num.clicked.connect(lambda: on_common_clicked(False))
+        self.abl_num.clicked.connect(lambda: on_common_clicked(True))
 
         self.auto_adjust_check.setChecked(
             config['setting'].getboolean('automatic_time_adjustment')
@@ -472,24 +505,29 @@ class SettingDialog(QDialog):
             self.on_delay_changed
         )
 
-        spinners = [
+        self.spinners = [
             ('don_time', self.don_spin),
             ('tsu_time', self.tsu_spin),
             ('morse_gap', self.morse_gap_spin),
             ('char_gap', self.char_gap_spin),
             ('word_gap', self.word_gap_spin)
         ]
-        for key, spinner in spinners:
+        self.spinner_enable(not self.auto_adjust_check.isChecked())
+        for key, spinner in self.spinners:
             spinner.setValue(int(config['setting'][key]))
             spinner.valueChanged.connect(
-                lambda value, key=key, spinner=spinner: self.on_spinner_changed(
-                    key, spinner)
+                lambda value, key=key, spinner=spinner:
+                    self.on_spinner_changed(key, spinner)
             )
 
     # 스피너(시간같은거) 바뀔때
     def on_spinner_changed(self, key, spinner):
         print(f"{key} changed to {spinner.value()}")
         config['setting'][key] = str(spinner.value())
+
+    def spinner_enable(self, enable: bool):
+        for key, spinner in self.spinners[1:]:
+            spinner.setEnabled(enable)
 
     # 문자 제외 체크박스 바뀔때
     def on_ex_check_changed(self, checked, char):
@@ -502,6 +540,7 @@ class SettingDialog(QDialog):
         config['setting']['automatic_time_adjustment'] = str(
             self.auto_adjust_check.isChecked()
         ).lower()
+        self.spinner_enable(not self.auto_adjust_check.isChecked())
 
     def on_delay_changed(self):
         config['setting']['delay'] = str(
@@ -553,9 +592,9 @@ class RoomDialog(QDialog):
         self.ime = IME(
             on_signal=self.on_ime_signal,
             on_ended_char=self.on_ime_ended_char,
-            on_ended_word=self.on_ime_ended_word,
-            no_delay=True
+            on_ended_word=self.on_ime_ended_word
         )
+        self.ime.word_end()
 
     def connected(self, room_code):
         self.ws.sendTextMessage(json.dumps(  # 방에 접속시키기.
@@ -565,12 +604,20 @@ class RoomDialog(QDialog):
 
     def keyPressEvent(self, event):
         # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
-        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
             self.ime.key_down()
+        elif (event.key() == Qt.Key.Key_J) and not event.isAutoRepeat():
+            self.ime.key_down(dontsu='tsu')
+        elif (event.key() == Qt.Key.Key_D) and not event.isAutoRepeat():
+            self.ime.key_down(dontsu='don')
         return super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
+            self.ime.key_up()
+        elif (event.key() == Qt.Key.Key_J) and not event.isAutoRepeat():
+            self.ime.key_up()
+        elif (event.key() == Qt.Key.Key_D) and not event.isAutoRepeat():
             self.ime.key_up()
         return super().keyReleaseEvent(event)
 
@@ -711,8 +758,7 @@ class PlayDialog(QDialog):
         self.ime = IME(
             on_signal=self.on_ime_signal,
             on_ended_char=self.on_ime_ended_char,
-            on_ended_word=self.on_ime_ended_word,
-            no_delay=True
+            on_ended_word=self.on_ime_ended_word
         )  # ime
         self.ime.word_gap = self.ime.don_time * 4
         self.morse = ""
@@ -738,7 +784,12 @@ class PlayDialog(QDialog):
 
     def generate_note(self):
         lane = random.randint(0, 3)
-        char = random.choice(list(en_word_map.values()))
+        all_morse = list(common_word_map.items()) + list(en_word_map.items())
+        all_morse = list(filter(
+            lambda item: item[1] not in config['setting']['exclude_chars'], all_morse
+        ))
+        all_morse = [item[1] for item in all_morse]
+        char = random.choice(all_morse)
         note = PlayNote(self, char, lane)
         self.notes.append(note)
         note.show()
@@ -786,12 +837,20 @@ class PlayDialog(QDialog):
             config.write(configfile)
 
     def keyPressEvent(self, event):
-        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
             self.ime.key_down()
+        elif (event.key() == Qt.Key.Key_J) and not event.isAutoRepeat():
+            self.ime.key_down(dontsu='tsu')
+        elif (event.key() == Qt.Key.Key_D) and not event.isAutoRepeat():
+            self.ime.key_down(dontsu='don')
         return super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
+            self.ime.key_up()
+        elif (event.key() == Qt.Key.Key_J) and not event.isAutoRepeat():
+            self.ime.key_up()
+        elif (event.key() == Qt.Key.Key_D) and not event.isAutoRepeat():
             self.ime.key_up()
         return super().keyReleaseEvent(event)
 
@@ -902,8 +961,7 @@ class LearnDialog(QDialog):
         self.ime = IME(
             on_signal=self.on_ime_signal,
             on_ended_char=self.on_ime_ended_char,
-            on_ended_word=self.on_ime_ended_word,
-            no_delay=False
+            on_ended_word=self.on_ime_ended_word
         )  # ime 만듦.
         self.ime.word_gap = self.ime.don_time * 4
 
@@ -941,12 +999,20 @@ class LearnDialog(QDialog):
 
     def keyPressEvent(self, event):
         # 얘는 짜증나게 AutoRepeat 이런게 있더라;;
-        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
             self.ime.key_down()
+        elif (event.key() == Qt.Key.Key_J) and not event.isAutoRepeat():
+            self.ime.key_down(dontsu='tsu')
+        elif (event.key() == Qt.Key.Key_D) and not event.isAutoRepeat():
+            self.ime.key_down(dontsu='don')
         return super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
+        if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
+            self.ime.key_up()
+        elif (event.key() == Qt.Key.Key_J) and not event.isAutoRepeat():
+            self.ime.key_up()
+        elif (event.key() == Qt.Key.Key_D) and not event.isAutoRepeat():
             self.ime.key_up()
         return super().keyReleaseEvent(event)
 
@@ -991,6 +1057,9 @@ class LearnDialog(QDialog):
 
     def load_new_question(self):
         all_morse = list(common_word_map.items()) + list(en_word_map.items())
+        all_morse = list(filter(
+            lambda item: item[1] not in config['setting']['exclude_chars'], all_morse
+        ))
         morse, char = random.choice(all_morse)
         self.current_question = (morse, char)
         self.target_char.setText(char)
