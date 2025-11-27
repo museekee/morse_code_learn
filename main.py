@@ -2,7 +2,7 @@
 try:
     import os
     from PyQt6.QtCore import QFile
-    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout, QCheckBox
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout, QCheckBox, QDialogButtonBox
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase, QTextCursor
     from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
@@ -106,17 +106,21 @@ try:
 
     config = configparser.ConfigParser()
 
-    def load_config():
+    def load_config(reset=False):
         global config
-        if not os.path.exists("1401_config.ini"):
+        if not os.path.exists("1401_config.ini") or reset == True:
             config['setting'] = {
                 'exclude_chars': '',  # | 로 구분
                 'automatic_time_adjustment': 'true',
+                'delay': 'false',
                 'don_time': '100',
                 'tsu_time': '300',
                 'morse_gap': '100',
                 'char_gap': '300',
                 'word_gap': '700'
+            }
+            config['play'] = {
+                'high_score': '0'
             }
             with open("1401_config.ini", 'w') as f:
                 config.write(f)
@@ -130,7 +134,7 @@ except ImportError:
     import os
 
     print("Requirements are not installed. Installing...")
-    # pyqt6, darkdetect, requests 설치
+    # pyqt6, darkdetect, sounddevice, soundfile, requests 설치
     pip.main(["install", "PyQt6", "darkdetect",
              "sounddevice", "soundfile", "requests"])
 
@@ -141,7 +145,7 @@ except ImportError:
     elif os.system(f"python3 \"{__file__}\"") == 0:
         exit(0)
     else:
-        print("Failed to start application. Please run it manually.")
+        print("인 켜지네요... 수동으로 켜주세요!")
         exit(1)
 # endregion
 
@@ -247,7 +251,7 @@ class IME:
         char_gap = don_time * 3
         # -> ^^ <- 글자간 간격. <= morse_gap <= time <= char_gap에 입력이 없으면 글자 종료. 만약 제대로 된 문자가 안 만들어지면 그 문자는 버림.
         word_gap = don_time * 7  # 단어간 간격(이만큼 지나면 ime 초기화. (한영 정보는 유지))
-    plusminus = 100  # 입력 오차 범위
+    plusminus = 50  # 입력 오차 범위
 
     lang = "en"
     start_time = 0  # 키 누른 시간
@@ -413,27 +417,114 @@ class SettingDialog(QDialog):
         self.setFont(self.font())
         self.setFixedSize(self.size())
 
-        self.buttonBox.accepted.connect(self.on_accept)
-        self.buttonBox.applied.connect(self.on_apply)
+        self.buttonBox.accepted.connect(self.on_accept)  # 확인 버튼(적용 후 닫기)
+        self.buttonBox.button(
+            QDialogButtonBox.StandardButton.Apply
+        ).clicked.connect(self.on_apply)  # 적용 버튼
+        self.buttonBox.button(
+            QDialogButtonBox.StandardButton.Reset
+        ).clicked.connect(self.reset)  # 리셋 버튼
 
-        excluded = config['setting']['exclude_chars'].split('|')  # 제외된 문자 목록
-        en_word_map_values = list(en_word_map.values())  # 알파벳 값들 가져오기
-        common_word_map_values = list(
-            common_word_map.values())  # 숫자/기호 값들 가져오기
+        self.excluded = config['setting']['exclude_chars'].split(
+            '|')  # 제외된 문자 목록
+        if self.excluded == ['']:
+            self.excluded = []
+        en_word_map_keys = list(en_word_map.keys())  # 알파벳 값들 가져오기
+        common_word_map_keys = list(common_word_map.keys())  # 숫자/기호 값들 가져오기
 
-        for k in en_word_map_values:
-            check = QCheckBox(k)
+        for k in en_word_map_keys:
+            v = en_word_map[k]
+            check = QCheckBox(f"{v} [{k} ]", self)
+            check.setFont(QFont("Jersey 25", 9))
             self.abc_list.addWidget(check)
-            if k in excluded:
+            if v in self.excluded:
                 check.setChecked(False)
             else:
                 check.setChecked(True)
 
+            check.clicked.connect(
+                lambda checked, char=v: self.on_ex_check_changed(checked, char)
+            )
+
+        for k in common_word_map_keys:
+            v = common_word_map[k]
+            check = QCheckBox(f"{v} [{k}]", self)
+            self.other_list.addWidget(check)
+            if v in self.excluded:
+                check.setChecked(False)
+            else:
+                check.setChecked(True)
+
+            check.clicked.connect(
+                lambda checked, char=v: self.on_ex_check_changed(checked, char)
+            )
+
+        self.auto_adjust_check.setChecked(
+            config['setting'].getboolean('automatic_time_adjustment')
+        )
+        self.auto_adjust_check.stateChanged.connect(
+            self.on_auto_adjust_changed
+        )
+        self.delay_check.setChecked(
+            config['setting'].getboolean('delay')
+        )
+        self.delay_check.stateChanged.connect(
+            self.on_delay_changed
+        )
+
+        spinners = [
+            ('don_time', self.don_spin),
+            ('tsu_time', self.tsu_spin),
+            ('morse_gap', self.morse_gap_spin),
+            ('char_gap', self.char_gap_spin),
+            ('word_gap', self.word_gap_spin)
+        ]
+        for key, spinner in spinners:
+            spinner.setValue(int(config['setting'][key]))
+            spinner.valueChanged.connect(
+                lambda value, key=key, spinner=spinner: self.on_spinner_changed(
+                    key, spinner)
+            )
+
+    # 스피너(시간같은거) 바뀔때
+    def on_spinner_changed(self, key, spinner):
+        print(f"{key} changed to {spinner.value()}")
+        config['setting'][key] = str(spinner.value())
+
+    # 문자 제외 체크박스 바뀔때
+    def on_ex_check_changed(self, checked, char):
+        if not checked:
+            self.excluded.append(char)
+        else:
+            self.excluded.remove(char)
+
+    def on_auto_adjust_changed(self):
+        config['setting']['automatic_time_adjustment'] = str(
+            self.auto_adjust_check.isChecked()
+        ).lower()
+
+    def on_delay_changed(self):
+        config['setting']['delay'] = str(
+            self.delay_check.isChecked()
+        ).lower()
+
+    def reset(self):
+        load_config(reset=True)
+        self.accept()
+        dlg = SettingDialog(self.parent())
+        dlg.exec()
+
+    # 확인
     def on_accept(self):
         self.on_apply()
         self.accept()
 
+    # 적용
     def on_apply(self):
+        print("제외된 문자:", self.excluded)
+        config['setting']['exclude_chars'] = '|'.join(self.excluded)
+        with open("1401_config.ini", 'w') as f:
+            config.write(f)
         pass
 
 
@@ -682,10 +773,17 @@ class PlayDialog(QDialog):
         self.override_score.setStyleSheet(
             "color: white; font-size: 48px; font-weight: bold;")
         self.override_score.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.override_score.setText(f"게임 오-버!\n점수: {self.score}")
+        self.override_score.setText(
+            f"게임 오-버!\n점수: {self.score}/\n최고 점수: {config['play']['high_score']}")
         self.override_score.setFont(QFont("Jersey 25", 48))
         self.override_score.raise_()
         self.override_score.show()
+        # 최고 점수 기록 하기
+        config['play']['high_score'] = str(max(
+            self.score, int(config['play']['high_score'])
+        ))
+        with open('1401_config.ini', 'w') as configfile:
+            config.write(configfile)
 
     def keyPressEvent(self, event):
         if (event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_K) and not event.isAutoRepeat():
@@ -944,11 +1042,13 @@ class PortalWindow(QMainWindow):
         self.btnLearn.clicked.disconnect()
         self.btn_play.clicked.disconnect()
         self.btn_together.clicked.disconnect()
+        self.btn_setting.clicked.disconnect()
 
         self.btnMemorize.clicked.connect(self.on_btnMemorize_clicked)
         self.btnLearn.clicked.connect(self.on_btnLearn_clicked)
         self.btn_play.clicked.connect(self.on_btn_play_clicked)
         self.btn_together.clicked.connect(self.on_btn_together_clicked)
+        self.btn_setting.clicked.connect(self.on_btn_setting_clicked)
 
     def on_btnMemorize_clicked(self):
         dialog = MemorizeDialog(self)
@@ -969,6 +1069,10 @@ class PortalWindow(QMainWindow):
         if room_connector.exec() == QDialog.DialogCode.Accepted:
             room = RoomDialog(self, room_connector.room_code)
             room.exec()
+
+    def on_btn_setting_clicked(self):
+        setting_dialog = SettingDialog(self)
+        setting_dialog.exec()
 
 
 # 일화 2: 멀티 기능을 클라이언트가 서버 노릇도 하고 클라이언트 노릇도 하게 만들려 했는데,

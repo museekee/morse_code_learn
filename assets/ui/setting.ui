@@ -41,6 +41,21 @@
           <string>출제 범위</string>
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout">
+          <property name="spacing">
+           <number>3</number>
+          </property>
+          <property name="leftMargin">
+           <number>25</number>
+          </property>
+          <property name="topMargin">
+           <number>15</number>
+          </property>
+          <property name="rightMargin">
+           <number>25</number>
+          </property>
+          <property name="bottomMargin">
+           <number>15</number>
+          </property>
           <item>
            <layout class="QVBoxLayout" name="abc_list"/>
           </item>
@@ -55,6 +70,195 @@
          <property name="title">
           <string>입력기 설정</string>
          </property>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="QCheckBox" name="auto_adjust_check">
+            <property name="text">
+             <string> ㆍ [돈] 시간에 따라 자동 조정</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_3">
+            <property name="font">
+             <font>
+              <family>궁서체</family>
+              <pointsize>12</pointsize>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">QLabel {
+	color: #f22;
+	line-height: 5px;
+}</string>
+            </property>
+            <property name="text">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;※경고: 자동 조정 비활성화 시 제대로 된&lt;/p&gt;&lt;p&gt;동작을 보장하지 않습니다!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="delay_check">
+            <property name="text">
+             <string> 현실적인 지연시간 활성화</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <item>
+             <widget class="QLabel" name="label">
+              <property name="text">
+               <string>ㆍ [돈] 시간</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="don_spin">
+              <property name="suffix">
+               <string>ms</string>
+              </property>
+              <property name="minimum">
+               <number>50</number>
+              </property>
+              <property name="maximum">
+               <number>200</number>
+              </property>
+              <property name="value">
+               <number>100</number>
+              </property>
+              <property name="displayIntegerBase">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QLabel" name="label_2">
+              <property name="text">
+               <string>ㅡ [쓰] 시간</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="tsu_spin">
+              <property name="suffix">
+               <string>ms</string>
+              </property>
+              <property name="minimum">
+               <number>150</number>
+              </property>
+              <property name="maximum">
+               <number>600</number>
+              </property>
+              <property name="value">
+               <number>300</number>
+              </property>
+              <property name="displayIntegerBase">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_4">
+            <item>
+             <widget class="QLabel" name="label_4">
+              <property name="text">
+               <string>모스부호 간 지연시간</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="morse_gap_spin">
+              <property name="suffix">
+               <string>ms</string>
+              </property>
+              <property name="minimum">
+               <number>50</number>
+              </property>
+              <property name="maximum">
+               <number>200</number>
+              </property>
+              <property name="value">
+               <number>100</number>
+              </property>
+              <property name="displayIntegerBase">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_5">
+            <item>
+             <widget class="QLabel" name="label_5">
+              <property name="text">
+               <string>문자 간 지연시간</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="char_gap_spin">
+              <property name="suffix">
+               <string>ms</string>
+              </property>
+              <property name="minimum">
+               <number>150</number>
+              </property>
+              <property name="maximum">
+               <number>600</number>
+              </property>
+              <property name="value">
+               <number>300</number>
+              </property>
+              <property name="displayIntegerBase">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_6">
+            <item>
+             <widget class="QLabel" name="label_6">
+              <property name="text">
+               <string>단어 간 지연시간</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="word_gap_spin">
+              <property name="suffix">
+               <string>ms</string>
+              </property>
+              <property name="minimum">
+               <number>350</number>
+              </property>
+              <property name="maximum">
+               <number>1400</number>
+              </property>
+              <property name="value">
+               <number>700</number>
+              </property>
+              <property name="displayIntegerBase">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
         </widget>
        </item>
       </layout>
@@ -67,7 +271,7 @@
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::StandardButton::Apply|QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
+      <set>QDialogButtonBox::StandardButton::Apply|QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok|QDialogButtonBox::StandardButton::Reset</set>
      </property>
     </widget>
    </item>
