@@ -5,14 +5,13 @@ try:
     from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout, QCheckBox, QDialogButtonBox
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase, QTextCursor
-    from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
+    from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl, QBuffer
     from PyQt6.QtSvg import QSvgRenderer
     from PyQt6 import QtCore
     from PyQt6.QtWebSockets import QWebSocket
+    from PyQt6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices, QAudio
     import darkdetect
     import random
-    import sounddevice as sd
-    import soundfile as sf
     import requests
     import io
     import threading
@@ -20,7 +19,7 @@ try:
     import winsound
     import configparser
 
-    no_sound = True  # 모스부호 소리 안나게
+    no_sound = False   # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
     assets = {
         "font": {
@@ -99,11 +98,8 @@ try:
 
     download_asset(assets, debug=True)
 
-    assets["sound"]["beep.wav"] = sf.read(
-        io.BytesIO(assets["sound"]["beep.wav"])
-        # 쌤이 적재하지 말고 온라인에서 가져오래서 ㅠㅠ sd에서 쓰기 위해 오디오 데이터와 샘플링데이터로 분리하는 과정... (tuple)
-    )
-    sd.default.latency = "low"  # 기본 레이턴시 왜 high냐 슬프네
+    # idx44까지 헤더라 지움 / QT 오디오로 쓰려고 QByteArray로 바꿈
+    assets["sound"]["beep.wav"] = QByteArray(assets["sound"]["beep.wav"][44:])
 
     config = configparser.ConfigParser()
 
@@ -269,6 +265,7 @@ class IME:
     key_down_type = None
 
     # callback은 나중에 websocket에서 쓸듯 / signal은 ㆍ, ㅡ 입력될때마다 호출 / ended_char는 글자 완성될때마다 호출
+
     def __init__(
         self,
         on_signal=(lambda signal: None),
@@ -283,6 +280,19 @@ class IME:
         self.on_ignored = on_ignored
         if not config['setting'].getboolean('delay'):
             self.morse_gap = 0
+
+        # 오디오 설정
+        # 샘플레이트같은거 내가 직접 설정해야함.
+        self.sound_format = QAudioFormat()
+        self.sound_format.setChannelCount(2)
+        self.sound_format.setSampleRate(48000)
+        self.sound_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+
+        audio_device = QMediaDevices.defaultAudioOutput()
+
+        self.audio_sink = QAudioSink(audio_device, self.sound_format)
+        self.io_buffer = QBuffer(assets["sound"]["beep.wav"])
+        self.io_buffer.open(QBuffer.OpenModeFlag.ReadOnly)
 
     def sync(self):
         pass
@@ -383,12 +393,17 @@ class IME:
     def stop_beep(self):
         if no_sound:
             return
-        sd.stop()
+        self.audio_sink.stop()
 
     def start_beep(self):
         if no_sound:
             return
-        sd.play(*assets["sound"]["beep.wav"], blocksize=1024)
+        self.io_buffer.seek(0)
+        if self.audio_sink.state() != QAudio.State.StoppedState:
+            self.audio_sink.reset()
+
+        self.audio_sink.start(self.io_buffer)
+
 # endregion
 
 
