@@ -1,12 +1,12 @@
 # region 패키지나 assets 다운로드
 try:
     import os
-    from PyQt6.QtCore import QFile
     from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QCheckBox, QDialogButtonBox
     from PyQt6.uic import loadUi
     from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
     from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
     from PyQt6.QtSvg import QSvgRenderer
+    from PyQt6.QtMultimedia import QSoundEffect
     from PyQt6 import QtCore
     from PyQt6.QtWebSockets import QWebSocket
     import darkdetect
@@ -15,11 +15,11 @@ try:
     import io
     import threading
     import json
-    import winsound
+    # import winsound
     import configparser
-    import tempfile
+    # import tempfile
 
-    no_sound = False   # 모스부호 소리 안나게
+    no_sound = True   # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
     assets = {
         "font": {
@@ -96,11 +96,12 @@ try:
         for t in threads:
             t.join()
 
-    download_asset(assets, debug=True)
+    download_asset(assets, debug=False)
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp.write(assets["sound"]["beep.wav"]) # 어쩔 수 없이 임시파일 작은거 하나 저장
-        assets["sound"]["beep_path"] = tmp.name
+    # with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+    #     tmp.write(assets["sound"]["beep.wav"]) # 어쩔 수 없이 임시파일 작은거 하나 저장
+    #     assets["sound"]["beep_path"] = tmp.name
+    #     print("Beep", tmp.name)
 
     config = configparser.ConfigParser()
 
@@ -266,7 +267,6 @@ class IME:
     was_dontsu = False  # dontsu 입력 플래그
 
     # callback은 나중에 websocket에서 쓸듯 / signal은 ㆍ, ㅡ 입력될때마다 호출 / ended_char는 글자 완성될때마다 호출
-
     def __init__(
         self,
         on_signal=(lambda signal: None),
@@ -279,6 +279,10 @@ class IME:
         self.on_ended_char = on_ended_char
         self.on_ended_word = on_ended_word
         self.on_ignored = on_ignored
+        
+        # self.effect = QSoundEffect()
+        # self.effect.setSource(QUrl.fromLocalFile(assets["sound"]["beep_path"]))
+
         if not config['setting'].getboolean('delay'):
             self.morse_gap = 0
 
@@ -317,23 +321,30 @@ class IME:
         # print(f"Pressed time: {press_time}ms")
 
         # press_time >= self.tsu_time +- self.plusminus
-        if self.tsu_time - self.plusminus <= press_time <= self.tsu_time + self.plusminus or self.key_down_type == 'tsu':
+        if self.tsu_time - self.plusminus <= press_time <= self.tsu_time + self.plusminus or self.key_down_type == 'tsu' and not self.key_down_type == 'don':
             self.morse_word[self.now_char_idx].append('ㅡ')
             self.on_signal('ㅡ')
         # press_time >= self.don_time +- self.plusminus
-        elif self.don_time - self.plusminus <= press_time <= self.don_time + self.plusminus or self.key_down_type == 'don':
+        elif self.don_time - self.plusminus <= press_time <= self.don_time + self.plusminus or self.key_down_type == 'don' and not self.key_down_type == 'tsu':
             self.morse_word[self.now_char_idx].append('ㆍ')
             self.on_signal('ㆍ')
 
         self.last_input_time = end_time
 
+        dontsu_offset = 0
+        if self.key_down_type is not None:
+            if self.key_down_type == 'tsu':
+                dontsu_offset = self.tsu_time - press_time
+            elif self.key_down_type == 'don':
+                dontsu_offset = self.don_time - press_time
+            self.key_down_type = None
         # 글자 입력 완료 시키는 타이머
-        char_end_timer = threading.Timer(self.char_gap / 1000, self.char_end)
+        char_end_timer = threading.Timer((self.char_gap + dontsu_offset) / 1000, self.char_end)
         self.interruptable_timer.append(char_end_timer)
         char_end_timer.start()
 
         # 단어 입력 완료 시키는 타이머
-        word_end_timer = threading.Timer(self.word_gap / 1000, self.word_end)
+        word_end_timer = threading.Timer((self.word_gap + dontsu_offset) / 1000, self.word_end)
         self.interruptable_timer.append(word_end_timer)
         word_end_timer.start()
         self.is_key_upped = True
@@ -376,24 +387,25 @@ class IME:
         self.start_time = 0
         for t in self.interruptable_timer:
             t.cancel()
-        self.interruptable_timer = []
-        self.ignore_key = False
-        self.is_key_upped = True
-        self.key_down_type = None
-
     def stop_beep(self):
         if no_sound:
             return
-        winsound.PlaySound(None, winsound.SND_PURGE)
+        self.effect.stop()
 
     def start_beep(self, dontsu=None):
         if no_sound:
             return
-        # print(assets["sound"]["beep_path"])
+        
+        self.effect.play()
+        
         if dontsu:
-            threading.Thread(target = lambda:winsound.Beep(700, self.tsu_time if dontsu =='tsu' else self.don_time)).start()
-        else:
-            winsound.PlaySound(assets["sound"]["beep_path"], winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
+            duration = (self.tsu_time if dontsu =='tsu' else self.don_time)
+            QTimer.singleShot(duration, self.stop_beep)
+        
+        if dontsu:
+            duration = (self.tsu_time if dontsu =='tsu' else self.don_time) / 1000
+            self.beep_timer = threading.Timer(duration, self.stop_beep)
+            self.beep_timer.start()
 
 # endregion
 
@@ -632,14 +644,15 @@ class RoomDialog(QDialog):
 
     def on_message(self, message):
         data = json.loads(message)
+        # print(data)
         if data["event"] == "morse":  # 다른사람이 보낸 모스부호
             if self.was_my_turn:  # 저번이 내 차례였으면
                 self.now_label_idx += 1  # 다음 라벨로 넘기기
                 self.was_my_turn = False  # 그리고 내 차례는 아님.
-                # if data["message"] == 'ㆍ':
-                #     winsound.Beep(700, 100)  # 비프음 재생
-                # else:
-                #     winsound.Beep(700, 200)  # 비프음 재생
+            # if data["message"] == 'ㆍ':
+            #     threading.Thread(target=lambda: winsound.Beep(700, self.ime.don_time)).start()  # 비프음 재생
+            # else:
+            #     threading.Thread(target=lambda: winsound.Beep(700, self.ime.tsu_time)).start()  # 비프음 재생
 
         if data["event"] == "word":
             self.add_message_word(data["word"])
@@ -793,6 +806,13 @@ class PlayDialog(QDialog):
         self.gen_note_timer.stop()
         self.down_timer.stop()
         self.ime.ignore_key = True
+        # 최고 점수 기록 하기
+        config['play']['high_score'] = str(max(
+            self.score, int(config['play']['high_score'])
+        ))
+        with open('1401_config.ini', 'w') as configfile:
+            config.write(configfile)
+        
         self.override_back = QLabel(self)
         self.override_back.setGeometry(0, 0, self.width(), self.height())
         self.override_back.setStyleSheet("background-color: black;")
@@ -806,16 +826,10 @@ class PlayDialog(QDialog):
             "color: white; font-size: 48px; font-weight: bold;")
         self.override_score.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.override_score.setText(
-            f"게임 오-버!\n점수: {self.score}/\n최고 점수: {config['play']['high_score']}")
+            f"게임 오-버!\n점수: {self.score}\n최고 점수: {config['play']['high_score']}")
         self.override_score.setFont(QFont("Jersey 25", 48))
         self.override_score.raise_()
         self.override_score.show()
-        # 최고 점수 기록 하기
-        config['play']['high_score'] = str(max(
-            self.score, int(config['play']['high_score'])
-        ))
-        with open('1401_config.ini', 'w') as configfile:
-            config.write(configfile)
 
     def keyPressEvent(self, event):
         if (event.key() == Qt.Key.Key_Space) and not event.isAutoRepeat():
