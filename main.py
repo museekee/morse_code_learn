@@ -2,14 +2,13 @@
 try:
     import os
     from PyQt6.QtCore import QFile
-    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QWidget, QVBoxLayout, QCheckBox, QDialogButtonBox
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QLabel, QCheckBox, QDialogButtonBox
     from PyQt6.uic import loadUi
-    from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase, QTextCursor
-    from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl, QBuffer
+    from PyQt6.QtGui import QPixmap, QPainter, QFont, QFontDatabase
+    from PyQt6.QtCore import Qt, QByteArray, QTimer, QUrl
     from PyQt6.QtSvg import QSvgRenderer
     from PyQt6 import QtCore
     from PyQt6.QtWebSockets import QWebSocket
-    from PyQt6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices, QAudio
     import darkdetect
     import random
     import requests
@@ -18,6 +17,7 @@ try:
     import json
     import winsound
     import configparser
+    import tempfile
 
     no_sound = False   # 모스부호 소리 안나게
     # 메모리에 저장할 asset들.....
@@ -98,8 +98,9 @@ try:
 
     download_asset(assets, debug=True)
 
-    # idx44까지 헤더라 지움 / QT 오디오로 쓰려고 QByteArray로 바꿈
-    assets["sound"]["beep.wav"] = QByteArray(assets["sound"]["beep.wav"][44:])
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp.write(assets["sound"]["beep.wav"]) # 어쩔 수 없이 임시파일 작은거 하나 저장
+        assets["sound"]["beep_path"] = tmp.name
 
     config = configparser.ConfigParser()
 
@@ -131,9 +132,8 @@ except ImportError:
     import os
 
     print("Requirements are not installed. Installing...")
-    # pyqt6, darkdetect, sounddevice, soundfile, requests 설치
-    pip.main(["install", "PyQt6", "darkdetect",
-             "sounddevice", "soundfile", "requests"])
+    # pyqt6, darkdetect, requests 설치
+    pip.main(["install", "PyQt6", "darkdetect", "requests"])
 
     if os.system(f"python \"{__file__}\"") == 0:
         exit(0)
@@ -249,7 +249,7 @@ class IME:
         char_gap = don_time * 3
         # -> ^^ <- 글자간 간격. <= morse_gap <= time <= char_gap에 입력이 없으면 글자 종료. 만약 제대로 된 문자가 안 만들어지면 그 문자는 버림.
         word_gap = don_time * 7  # 단어간 간격(이만큼 지나면 ime 초기화. (한영 정보는 유지))
-    plusminus = 50  # 입력 오차 범위
+    plusminus = 100  # 입력 오차 범위
 
     lang = "en"
     start_time = 0  # 키 누른 시간
@@ -263,6 +263,7 @@ class IME:
     ignore_key = False  # 모스부호 입력 무시 플래그 <= 신호간 간격내 입력시
     is_key_upped = True  # 키 뗌 확인 플래그
     key_down_type = None
+    was_dontsu = False  # dontsu 입력 플래그
 
     # callback은 나중에 websocket에서 쓸듯 / signal은 ㆍ, ㅡ 입력될때마다 호출 / ended_char는 글자 완성될때마다 호출
 
@@ -281,19 +282,6 @@ class IME:
         if not config['setting'].getboolean('delay'):
             self.morse_gap = 0
 
-        # 오디오 설정
-        # 샘플레이트같은거 내가 직접 설정해야함.
-        self.sound_format = QAudioFormat()
-        self.sound_format.setChannelCount(2)
-        self.sound_format.setSampleRate(48000)
-        self.sound_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-
-        audio_device = QMediaDevices.defaultAudioOutput()
-
-        self.audio_sink = QAudioSink(audio_device, self.sound_format)
-        self.io_buffer = QBuffer(assets["sound"]["beep.wav"])
-        self.io_buffer.open(QBuffer.OpenModeFlag.ReadOnly)
-
     def sync(self):
         pass
 
@@ -301,8 +289,9 @@ class IME:
     def key_down(self, dontsu=None):
         if not self.is_key_upped:
             return
+        self.was_dontsu = dontsu is not None
         if not self.ignore_key:
-            self.start_beep()
+            self.start_beep(dontsu)
         self.is_key_upped = False
         self.key_down_type = dontsu
         input_gap = int(time.time() * 1000) - self.last_input_time
@@ -348,7 +337,9 @@ class IME:
         self.interruptable_timer.append(word_end_timer)
         word_end_timer.start()
         self.is_key_upped = True
-        self.stop_beep()
+        if not self.was_dontsu:
+            self.stop_beep()
+        self.was_dontsu = False
 
     def char_end(self):
         morse = ''.join(self.morse_word[self.now_char_idx])
@@ -393,24 +384,23 @@ class IME:
     def stop_beep(self):
         if no_sound:
             return
-        self.audio_sink.stop()
+        winsound.PlaySound(None, winsound.SND_PURGE)
 
-    def start_beep(self):
+    def start_beep(self, dontsu=None):
         if no_sound:
             return
-        self.io_buffer.seek(0)
-        if self.audio_sink.state() != QAudio.State.StoppedState:
-            self.audio_sink.reset()
-
-        self.audio_sink.start(self.io_buffer)
+        # print(assets["sound"]["beep_path"])
+        if dontsu:
+            threading.Thread(target = lambda:winsound.Beep(700, self.tsu_time if dontsu =='tsu' else self.don_time)).start()
+        else:
+            winsound.PlaySound(assets["sound"]["beep_path"], winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
 
 # endregion
 
 
 def getPixmapedSvg(image_name: str, width: int, height: int) -> QPixmap:
     theme = "dark" if darkdetect.isDark() else "light"  # 다크모드면 글자 하얀거 씀.
-    renderer = QSvgRenderer(QByteArray(
-        assets["img"][theme][image_name]))  # svg 렌더러
+    renderer = QSvgRenderer(QByteArray(assets["img"][theme][image_name]))  # svg 렌더러
 
     pixmap = QPixmap(width, height)  # 여기에 svg 박을거임
     pixmap.fill(Qt.GlobalColor.transparent)
@@ -434,12 +424,8 @@ class SettingDialog(QDialog):
         self.setFixedSize(self.size())
 
         self.buttonBox.accepted.connect(self.on_accept)  # 확인 버튼(적용 후 닫기)
-        self.buttonBox.button(
-            QDialogButtonBox.StandardButton.Apply
-        ).clicked.connect(self.on_apply)  # 적용 버튼
-        self.buttonBox.button(
-            QDialogButtonBox.StandardButton.Reset
-        ).clicked.connect(self.reset)  # 리셋 버튼
+        self.buttonBox.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(self.on_apply)  # 적용 버튼
+        self.buttonBox.button(QDialogButtonBox.StandardButton.Reset).clicked.connect(self.reset)  # 리셋 버튼
 
         self.excluded = config['setting']['exclude_chars'].split(
             '|')  # 제외된 문자 목록
@@ -460,9 +446,7 @@ class SettingDialog(QDialog):
             else:
                 check.setChecked(True)
 
-            check.clicked.connect(
-                lambda checked, char=v: self.on_ex_check_changed(checked, char)
-            )
+            check.clicked.connect(lambda checked, char=v: self.on_ex_check_changed(checked, char))
 
         common_checks = []
         for k in common_word_map_keys:
@@ -475,17 +459,13 @@ class SettingDialog(QDialog):
             else:
                 check.setChecked(True)
 
-            check.clicked.connect(
-                lambda checked, char=v: self.on_ex_check_changed(checked, char)
-            )
+            check.clicked.connect(lambda checked, char=v: self.on_ex_check_changed(checked, char))
 
         def on_chr_clicked(checked):
             for check in en_checks:
                 check.setChecked(checked)
             if checked:
-                self.excluded = list(filter(
-                    lambda x: x not in en_word_map.values(), self.excluded
-                ))
+                self.excluded = list(filter(lambda x: x not in en_word_map.values(), self.excluded))
             else:
                 self.excluded += list(en_word_map.values())
             self.excluded = list(set(self.excluded))  # 중복제거
@@ -494,9 +474,7 @@ class SettingDialog(QDialog):
             for check in common_checks:
                 check.setChecked(checked)
             if checked:
-                self.excluded = list(filter(
-                    lambda x: x not in common_word_map.values(), self.excluded
-                ))
+                self.excluded = list(filter(lambda x: x not in common_word_map.values(), self.excluded))
             else:
                 self.excluded += list(common_word_map.values())
             self.excluded = list(set(self.excluded))  # 중복제거
@@ -507,18 +485,10 @@ class SettingDialog(QDialog):
         self.dis_num.clicked.connect(lambda: on_common_clicked(False))
         self.abl_num.clicked.connect(lambda: on_common_clicked(True))
 
-        self.auto_adjust_check.setChecked(
-            config['setting'].getboolean('automatic_time_adjustment')
-        )
-        self.auto_adjust_check.stateChanged.connect(
-            self.on_auto_adjust_changed
-        )
-        self.delay_check.setChecked(
-            config['setting'].getboolean('delay')
-        )
-        self.delay_check.stateChanged.connect(
-            self.on_delay_changed
-        )
+        self.auto_adjust_check.setChecked(config['setting'].getboolean('automatic_time_adjustment'))
+        self.auto_adjust_check.stateChanged.connect(self.on_auto_adjust_changed)
+        self.delay_check.setChecked(config['setting'].getboolean('delay'))
+        self.delay_check.stateChanged.connect(self.on_delay_changed)
 
         self.spinners = [
             ('don_time', self.don_spin),
@@ -552,15 +522,11 @@ class SettingDialog(QDialog):
             self.excluded.remove(char)
 
     def on_auto_adjust_changed(self):
-        config['setting']['automatic_time_adjustment'] = str(
-            self.auto_adjust_check.isChecked()
-        ).lower()
+        config['setting']['automatic_time_adjustment'] = str(self.auto_adjust_check.isChecked()).lower()
         self.spinner_enable(not self.auto_adjust_check.isChecked())
 
     def on_delay_changed(self):
-        config['setting']['delay'] = str(
-            self.delay_check.isChecked()
-        ).lower()
+        config['setting']['delay'] = str(self.delay_check.isChecked()).lower()
 
     def reset(self):
         load_config(reset=True)
@@ -984,16 +950,14 @@ class LearnDialog(QDialog):
         self.correct.setGeometry(0, 0, 800, 750)
         correct_pixmap = QPixmap()
         correct_pixmap.loadFromData(QByteArray(assets["img"]["correct.png"]))
-        self.correct.setPixmap(
-            correct_pixmap.scaled(800, 750))
+        self.correct.setPixmap(correct_pixmap.scaled(800, 750))
         self.correct.raise_()
 
         self.wrong = QLabel(self)
         self.wrong.setGeometry(0, 0, 800, 750)
         wrong_pixmap = QPixmap()
         wrong_pixmap.loadFromData(QByteArray(assets["img"]["wrong.png"]))
-        self.wrong.setPixmap(
-            wrong_pixmap.scaled(800, 750))
+        self.wrong.setPixmap(wrong_pixmap.scaled(800, 750))
         self.wrong.raise_()
         self.correct.hide()
         self.wrong.hide()
